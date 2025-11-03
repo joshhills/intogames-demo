@@ -20,6 +20,21 @@ import {
   setLeaderboardFlushInterval,
   redisClient
 } from '../shared/redis-client.js';
+import {
+  register,
+  matchesCompleted,
+  leaderboardFlushes,
+  motdBroadcasts,
+  activePlayers,
+  leaderboardSize,
+  globalHealth as globalHealthGauge,
+  globalMaxHealth as globalMaxHealthGauge,
+  playersEnrolled,
+  matchScoreHistogram,
+  matchSuccessRatioHistogram,
+  recordApiRequest
+} from './metrics.js';
+
 const app = express();
 const port = 3000;
 
@@ -36,6 +51,21 @@ const GAME_CONFIG = {
 // --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
+
+// Request tracking middleware for metrics
+app.use((req, res, next) => {
+  const start = Date.now();
+  const originalEnd = res.end;
+  
+  res.end = function(...args) {
+    const duration = Date.now() - start;
+    const endpoint = req.route ? req.route.path : req.path;
+    recordApiRequest(req.method, endpoint, res.statusCode, duration);
+    originalEnd.apply(res, args);
+  };
+  
+  next();
+});
 
 // Middleware to verify JWT token (for player endpoints)
 const authenticateToken = (req, res, next) => {
@@ -142,7 +172,7 @@ app.get('/api/game-config', (req, res) => {
 
 // 4. Submit Match Score
 app.post('/api/match/complete', authenticateToken, async (req, res) => {
-  const { score, difficulty } = req.body;
+  const { score, difficulty, successRatio } = req.body;
   const { uuid } = req.user;
   let player = await db.hGetAll(`player:${uuid}`);
 
@@ -166,11 +196,12 @@ app.post('/api/match/complete', authenticateToken, async (req, res) => {
     }));
     
     // Delete the leaderboard ZSET
-    await redisClient.del('leaderboard');
-    await setLeaderboardLastFlush(now);
-    leaderboardFlushed = true;
-    console.log(`Leaderboard flushed (interval: ${flushIntervalMinutes} minutes). Reset ${playerUUIDs.length} player scores.`);
-  }
+            await redisClient.del('leaderboard');
+            await setLeaderboardLastFlush(now);
+            leaderboardFlushed = true;
+            leaderboardFlushes.inc(); // Track leaderboard flush
+            console.log(`Leaderboard flushed (interval: ${flushIntervalMinutes} minutes). Reset ${playerUUIDs.length} player scores.`);
+          }
 
   // 4b. Get top 3 BEFORE updating (to compare later)
   const topScoresBefore = leaderboardFlushed ? [] : await db.zRangeWithScores('leaderboard', 0, 2, { REV: true });
@@ -182,10 +213,21 @@ app.post('/api/match/complete', authenticateToken, async (req, res) => {
   }
   const newTotalScore = currentTotalScore + score;
   
-  await db.hSet(`player:${uuid}`, 'totalScore', newTotalScore);
-  
-  // 4d. Update Leaderboard (ZSET) with cumulative total score
-  await db.zAdd('leaderboard', { score: newTotalScore, value: uuid });
+          await db.hSet(`player:${uuid}`, 'totalScore', newTotalScore);
+          
+          // 4d. Update Leaderboard (ZSET) with cumulative total score
+          await db.zAdd('leaderboard', { score: newTotalScore, value: uuid });
+          
+          // Track match completion metrics
+          matchesCompleted.inc({ difficulty });
+          matchScoreHistogram.observe({ difficulty }, score);
+          
+          // Track success ratio if provided
+          if (successRatio !== undefined && !isNaN(successRatio)) {
+            // Ensure success ratio is between 0 and 100
+            const clampedRatio = Math.max(0, Math.min(100, parseFloat(successRatio)));
+            matchSuccessRatioHistogram.observe({ difficulty }, clampedRatio);
+          }
 
   // 4e. Get top 3 AFTER updating and check if order changed
   const topScoresAfter = await db.zRangeWithScores('leaderboard', 0, 2, { REV: true });
@@ -208,21 +250,27 @@ app.post('/api/match/complete', authenticateToken, async (req, res) => {
     }
   }
   
-  if (top3Changed) {
-    // Fetch player details for top 3
-    const leaderboard = await Promise.all(topScoresAfter.map(async entry => {
-      const playerData = await db.hGetAll(`player:${entry.value}`);
-      return {
-        tagline: playerData.tagline || `Defender-${entry.value.substring(0, 4)}`,
-        score: entry.score
-      };
-    }));
-    
-    broadcastMessage({ 
-      type: 'LEADERBOARD_UPDATE', 
-      leaderboard: leaderboard
-    });
-  }
+          if (top3Changed) {
+            // Fetch player details for top 3
+            const leaderboard = await Promise.all(topScoresAfter.map(async entry => {
+              const playerData = await db.hGetAll(`player:${entry.value}`);
+              return {
+                tagline: playerData.tagline || `Defender-${entry.value.substring(0, 4)}`,
+                score: entry.score
+              };
+            }));
+
+            // Include flush info in the update so clients don't need to poll
+            const currentLastFlush = await getLeaderboardLastFlush();
+            const currentFlushInterval = await getLeaderboardFlushInterval();
+
+            broadcastMessage({
+              type: 'LEADERBOARD_UPDATE',
+              leaderboard: leaderboard,
+              lastFlush: currentLastFlush,
+              flushIntervalMinutes: currentFlushInterval
+            });
+          }
 
   // 4f. Update Global Health
   const currentHealth = await getGlobalHealth();
@@ -316,12 +364,17 @@ app.delete('/api/admin/leaderboard', authenticateAdmin, async (req, res) => {
     await redisClient.del('leaderboard');
     await setLeaderboardLastFlush(now);
     
-    // Broadcast empty leaderboard update to all clients
-    broadcastMessage({ 
-      type: 'LEADERBOARD_UPDATE', 
-      leaderboard: [],
-      flushed: true
-    });
+            // Broadcast empty leaderboard update to all clients with flush info
+            const currentLastFlush = await getLeaderboardLastFlush();
+            const currentFlushInterval = await getLeaderboardFlushInterval();
+            
+            broadcastMessage({
+              type: 'LEADERBOARD_UPDATE',
+              leaderboard: [],
+              flushed: true,
+              lastFlush: currentLastFlush,
+              flushIntervalMinutes: currentFlushInterval
+            });
     
     console.log(`Leaderboard flushed via admin panel. Reset ${playerUUIDs.length} player scores.`);
     res.sendStatus(200);
@@ -446,6 +499,7 @@ app.post('/api/admin/broadcast-motd', authenticateAdmin, async (req, res) => {
       message: `MESSAGE FROM ADMIN: ${message}`
     });
 
+    motdBroadcasts.inc(); // Track MOTD broadcast
     res.sendStatus(200);
   } catch (error) {
     console.error('Error broadcasting MOTD:', error);
@@ -505,19 +559,45 @@ app.post('/api/admin/game-config', authenticateAdmin, async (req, res) => {
   }
 });
 
-// --- INITIALIZATION ---
-// Only start listening if this file is run directly (not imported for testing)
-const isTest = process.env.NODE_ENV === 'test';
-if (!isTest) {
-  app.listen(port, () => {
-    console.log(`API Service listening at http://localhost:${port}`);
-  });
+        // --- METRICS ENDPOINT ---
+        app.get('/metrics', async (req, res) => {
+          try {
+            // Update dynamic metrics from Redis
+            const health = await getGlobalHealth();
+            const maxHealth = await getMaxHealth();
+            globalHealthGauge.set(health);
+            globalMaxHealthGauge.set(maxHealth);
+            
+            // Count active players (all player:uuid keys)
+            const playerKeys = await redisClient.keys('player:*');
+            activePlayers.set(playerKeys.length);
+            
+            // Count leaderboard size
+            const leaderboardCount = await redisClient.zcard('leaderboard');
+            leaderboardSize.set(leaderboardCount || 0);
+            
+            res.set('Content-Type', register.contentType);
+            res.end(await register.metrics());
+          } catch (error) {
+            console.error('Error generating metrics:', error);
+            res.status(500).send('Error generating metrics');
+          }
+        });
 
-  // We only need to check the connection status for the publisher client here
-  redisClient.on('connect', () => {
-    console.log('API Service connected to Redis (Publisher Client).');
-  });
-}
+        // --- INITIALIZATION ---
+        // Only start listening if this file is run directly (not imported for testing)
+        const isTest = process.env.NODE_ENV === 'test';
+        if (!isTest) {
+          app.listen(port, () => {
+            console.log(`API Service listening at http://localhost:${port}`);
+            console.log(`Metrics available at http://localhost:${port}/metrics`);
+          });
+
+          // We only need to check the connection status for the publisher client here
+          redisClient.on('connect', () => {
+            console.log('API Service connected to Redis (Publisher Client).');
+          });
+        }
 
 // Export app for testing
 export { app, GAME_CONFIG };

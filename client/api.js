@@ -178,8 +178,8 @@ function updateFlushCountdownDisplay() {
   
   if (timeUntilFlush <= 0) {
     countdownEl.textContent = 'Resets soon...';
-    // Reload flush info if time has elapsed (might have been auto-flushed)
-    setTimeout(loadLeaderboardFlushInfo, 2000);
+    // Note: Flush info will be updated via WebSocket LEADERBOARD_UPDATE message
+    // No need to poll - just wait for the push notification
     return;
   }
   
@@ -309,7 +309,7 @@ function hideMOTD() {
   }
 }
 
-async function submitMatchScore(score, difficulty) {
+async function submitMatchScore(score, difficulty, successRatio) {
   if (!jwtToken) return;
   try {
     const response = await fetch(`${API_URL}/match/complete`, {
@@ -318,7 +318,7 @@ async function submitMatchScore(score, difficulty) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`,
       },
-      body: JSON.stringify({ score, difficulty }),
+      body: JSON.stringify({ score, difficulty, successRatio }),
     });
     
     if (response.ok) {
@@ -327,8 +327,7 @@ async function submitMatchScore(score, difficulty) {
       if (data.totalScore !== undefined) {
         updatePlayerScore(data.totalScore);
       }
-      // Refresh flush info in case leaderboard was auto-flushed
-      loadLeaderboardFlushInfo();
+      // Flush info and leaderboard will be updated via WebSocket LEADERBOARD_UPDATE message if top 3 changes
       showNotification('Defense Report Submitted!');
     } else {
       throw new Error('Failed to submit score');
@@ -418,21 +417,26 @@ function connectWebSocket() {
 
       if (data.type === 'NEW_TOP_DEFENDER') {
         showNotification(data.message);
-        getLeaderboard();
+        // Leaderboard will be updated via LEADERBOARD_UPDATE message, no need to fetch
       }
       
       if (data.type === 'LEADERBOARD_UPDATE') {
         // Update the leaderboard display with new data
         updateLeaderboardDisplay(data.leaderboard);
-        getLeaderboard(); // Also refresh to ensure consistency
+        // Update flush info from the message if provided (no need to call API)
+        if (data.lastFlush !== undefined && data.flushIntervalMinutes !== undefined) {
+          leaderboardFlushInfo = {
+            lastFlush: data.lastFlush,
+            flushIntervalMinutes: data.flushIntervalMinutes
+          };
+        }
         
         // If leaderboard was flushed, show notification and reset countdown
         if (data.flushed) {
           showNotification('Leaderboard has been reset!');
-          loadLeaderboardFlushInfo(); // Reload flush info to get new timestamp
           // Reset player's own score display to 0 since all scores were reset
           updatePlayerScore(0);
-          // Also refresh profile to ensure consistency
+          // Refresh profile once to get updated score
           getProfile();
         }
       }

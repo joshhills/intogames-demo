@@ -1,0 +1,47 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Scrape logs from Docker containers
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Only scrape containers with logging=true label
+      - source_labels: ['__meta_docker_container_label_logging']
+        regex: 'true'
+        action: keep
+      
+      # Extract job name from label
+      - source_labels: ['__meta_docker_container_label_logging_job']
+        target_label: job
+        regex: '(.+)'
+      
+      # Extract container name
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+        replacement: '${1}'
+      
+      # Extract service name from Docker Compose label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+        regex: '(.+)'
+      
+      # Set log path from container ID
+      - source_labels: ['__meta_docker_container_id']
+        target_label: __path__
+        replacement: '/var/lib/docker/containers/${1}/${1}-json.log'
+      
+      # Extract stream type
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: stream
+

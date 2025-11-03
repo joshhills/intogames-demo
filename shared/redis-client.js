@@ -68,7 +68,7 @@ let subscriberClient = null;
 let subscriberInitialized = false;
 
 // Store of active WebSocket connections
-const activeConnections = new Set();
+export const activeConnections = new Set();
 
 // Lazy initialization of subscriber client
 function initializeSubscriber() {

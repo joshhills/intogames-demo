@@ -1,10 +1,18 @@
 import fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import cors from '@fastify/cors';
-import { 
-    handleNewConnection, 
+import {
+    handleNewConnection,
     subscriberClient
 } from '../shared/redis-client.js';
+import {
+    register,
+    websocketConnectionsTotal,
+    websocketDisconnectionsTotal,
+    websocketMessagesReceived,
+    updateMetrics
+} from './metrics.js';
+import { activeConnections } from '../shared/redis-client.js';
 
 const WS_PORT = process.env.PORT || 3001;
 
@@ -39,6 +47,9 @@ server.register(async function (fastify) {
             
             // Handle connection before setting up handlers
             handleNewConnection(socket);
+            websocketConnectionsTotal.inc();
+            // Update metrics after a short delay to ensure connection is registered
+            setTimeout(() => updateMetrics(activeConnections), 100);
 
             // Send welcome message to confirm connection
             try {
@@ -52,6 +63,7 @@ server.register(async function (fastify) {
             if (socket && typeof socket.on === 'function') {
                 socket.on('message', (message) => {
                     try {
+                        websocketMessagesReceived.inc();
                         const data = message.toString();
                         // Handle ping messages
                         if (data === '{"type":"ping"}') {
@@ -68,9 +80,11 @@ server.register(async function (fastify) {
                     console.error('WebSocket connection error:', error.message || error);
                 });
 
-                socket.on('close', (code, reason) => {
-                    console.log(`Client disconnected from WebSocket. Code: ${code}, Reason: ${reason || 'none'}`);
-                });
+                        socket.on('close', (code, reason) => {
+                            console.log(`Client disconnected from WebSocket. Code: ${code}, Reason: ${reason || 'none'}`);
+                            websocketDisconnectionsTotal.inc();
+                            updateMetrics(activeConnections);
+                        });
             }
         } catch (error) {
             console.error('Error setting up WebSocket connection:', error.message || error);
@@ -78,11 +92,17 @@ server.register(async function (fastify) {
     });
 });
 
-server.post('/notify', async (req, reply) => {
-    const notificationPayload = req.body;
-    server.log.info('Received notification: %s', notificationPayload.type);
-    reply.send({ success: true });
-});
+        server.post('/notify', async (req, reply) => {
+            const notificationPayload = req.body;
+            server.log.info('Received notification: %s', notificationPayload.type);
+            reply.send({ success: true });
+        });
+
+        // Metrics endpoint
+        server.get('/metrics', async (req, reply) => {
+            updateMetrics(activeConnections); // Refresh metrics before serving
+            reply.type('text/plain').send(await register.metrics());
+        });
 
 const start = async () => {
     try {

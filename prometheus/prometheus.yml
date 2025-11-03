@@ -1,0 +1,23 @@
+# Prometheus configuration for Firewall Defense
+global:
+  scrape_interval: 15s # How frequently to scrape targets
+  evaluation_interval: 15s # How frequently to evaluate rules
+  external_labels:
+    monitor: 'firewall-defense'
+
+# Scrape configurations
+scrape_configs:
+  # API Service metrics
+  - job_name: 'api-service'
+    static_configs:
+      - targets: ['api-service:3000']
+        labels:
+          service: 'api'
+  
+  # Push Service (WebSocket) metrics
+  - job_name: 'push-service'
+    static_configs:
+      - targets: ['push-service:3001']
+        labels:
+          service: 'push'
+

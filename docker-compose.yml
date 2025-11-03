@@ -30,6 +30,14 @@ services:
       - ADMIN_API_KEY=ADMIN_SUPER_SECRET_KEY # Hardcoded key for admin tool
     depends_on:
       - redis
+    logging:
+      driver: "json-file"
+      options:
+        labels: "service,app"
+        tag: "{{.Name}}/{{.ID}}"
+    labels:
+      - "logging=true"
+      - "logging_job=api-service"
 
   # 3. The Real-time Push Service (Node.js + WebSocket)
   push-service:
@@ -40,6 +48,14 @@ services:
       - "3001:3001"
     environment:
       - REDIS_URI=redis://redis:6379
+    logging:
+      driver: "json-file"
+      options:
+        labels: "service,app"
+        tag: "{{.Name}}/{{.ID}}"
+    labels:
+      - "logging=true"
+      - "logging_job=push-service"
     
   # 4. The Data Store (Redis - used for player profiles, leaderboards, health, and Pub/Sub)
   redis:
@@ -58,6 +74,14 @@ services:
       - API_SERVICE_URL=http://api-service:3000
     depends_on:
       - api-service # Depends on the API to proxy requests
+    logging:
+      driver: "json-file"
+      options:
+        labels: "service,app"
+        tag: "{{.Name}}/{{.ID}}"
+    labels:
+      - "logging=true"
+      - "logging_job=admin-service"
 
   # 7. Swagger UI (API Documentation)
   swagger-ui:
@@ -71,6 +95,109 @@ services:
     environment:
       - API_URL=${API_SERVICE_URL:-http://localhost:3000}
 
+  # 8. Prometheus (Metrics Collection)
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090" # Access Prometheus at http://localhost:9090
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      - api-service
+      - push-service
+
+  # 9. Grafana (Metrics Visualization)
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3002:3000" # Access Grafana at http://localhost:3002
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=password123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=grafana-exploretraces-app,grafana-metricsdrilldown-app
+      - GF_DATASOURCES_ALLOW_EDIT=true
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 9b. Grafana Datasource Provisioner (runs once to setup datasources)
+  grafana-init:
+    image: curlimages/curl:latest
+    volumes:
+      - ./grafana/init:/scripts:ro
+    depends_on:
+      grafana:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - /scripts/provision-datasource.sh
+    restart: "no"
+
+  # 10. Loki (Log Aggregation)
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100" # Loki API
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # 11. Promtail (Log Shipper)
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+  # 12. Redis Commander (Redis Viewer)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "3003:8081" # Access Redis Commander at http://localhost:3003
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=password123
+    depends_on:
+      - redis
+
 volumes:
   redis-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
 

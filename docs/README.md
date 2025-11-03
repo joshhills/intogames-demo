@@ -1,6 +1,6 @@
-# Firewall Defense API Documentation
+# API Documentation & Design
 
-This directory contains OpenAPI specifications and design documentation for the Firewall Defense game services.
+This directory contains OpenAPI specifications and the design document for the Firewall Defense game services.
 
 ## OpenAPI Specifications
 
@@ -27,15 +27,11 @@ Three OpenAPI 3.0 specifications are provided:
 
 ### Using Swagger UI (Recommended)
 
-The easiest way to view and interact with the API documentation is through Swagger UI, which is included in the Docker Compose setup:
-
 1. Start all services: `docker-compose up`
 2. Open Swagger UI: http://localhost:8081
 3. Use the dropdown at the top to switch between API Service, Admin Service, and Push Service documentation
 
 ### Using External Tools
-
-You can also view these OpenAPI specs using:
 
 - **Swagger Editor**: https://editor.swagger.io (paste the YAML content)
 - **Postman**: Import the YAML files to generate API collections
@@ -50,13 +46,11 @@ You can also view these OpenAPI specs using:
 - Technical constraints and integration points
 - Scalability considerations
 
-This document serves as a reference for understanding how the implemented services align with game design and live operations requirements.
-
 ## Configuration
 
 **`swagger-config.yaml`** - Configuration file for Swagger UI that defines which OpenAPI specs to load.
 
 ---
 
-**Note:** When deploying to production, update the server URLs in the OpenAPI specs to match your deployment environment, or use environment variable substitution if your Swagger UI setup supports it.
+**Note:** For complete project documentation, see the main [README.md](../README.md) in the root directory.
 

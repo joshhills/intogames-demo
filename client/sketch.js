@@ -11,6 +11,8 @@ let currentDifficulty = 'medium';
 let currentConfig = {};
 let bugSpawnInterval;
 let gameTimerInterval;
+let bugsSpawned = 0;
+let bugsReachedHoles = 0;
 
 let setupComplete = false;
 
@@ -237,6 +239,7 @@ function draw() {
         // If bug is within collision radius of hole, remove it
         if (distance < collisionRadius) {
           bug._hitHole = true;
+          bugsReachedHoles++; // Track bug that reached hole
           
           const penalty = currentConfig.penalty || 10;
           playerScore -= penalty; // Remove Math.max(0, playerScore) - allow negative scores
@@ -371,6 +374,7 @@ function spawnBug() {
       break;
   }
   
+  bugsSpawned++; // Track bug spawned
   const bug = new bugs.Sprite(x, y, 20, 20, 'dynamic');
   bug.color = '#FF0000';
   bug.collider = 'circle';
@@ -412,6 +416,10 @@ function startGame() {
   playerScore = 0;
   gameTimer = currentConfig.gameTimeSeconds || 60;
   gameState = 'MIDGAME';
+  
+  // Reset success ratio tracking
+  bugsSpawned = 0;
+  bugsReachedHoles = 0;
   
   // Clear old game objects
   bugs.removeAll();
@@ -487,7 +495,12 @@ function endGame() {
   
   noLoop();
   
-  submitMatchScore(playerScore, currentDifficulty);
+  // Calculate success ratio (percentage of bugs prevented from reaching holes)
+  const successRatio = bugsSpawned > 0 
+    ? ((bugsSpawned - bugsReachedHoles) / bugsSpawned) * 100 
+    : 100; // If no bugs spawned, consider it 100% success
+  
+  submitMatchScore(playerScore, currentDifficulty, successRatio);
   
   // Resume loop to show POSTGAME screen
   loop();
