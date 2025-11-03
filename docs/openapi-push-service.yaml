@@ -1,0 +1,185 @@
+openapi: 3.0.3
+info:
+  title: Firewall Defense Push Service
+  description: |
+    WebSocket service for real-time push notifications to connected game clients.
+    Uses Redis Pub/Sub to receive broadcast messages from the API Service.
+    
+    Clients connect via WebSocket and receive real-time updates for:
+    - Global firewall health changes
+    - Leaderboard updates (top 3 changes)
+    - Message of the Day broadcasts
+    - Match completion notifications
+  version: 1.0.0
+  contact:
+    name: Into Games Workshop
+servers:
+  - url: ws://localhost:3001
+    description: Local development WebSocket server
+  - url: ${WS_SERVICE_URL}
+    description: Production WebSocket server (set via environment variable)
+
+tags:
+  - name: WebSocket
+    description: WebSocket connection and message protocol
+
+paths:
+  /ws:
+    get:
+      tags:
+        - WebSocket
+      summary: WebSocket connection endpoint
+      description: |
+        Establishes a WebSocket connection for real-time push notifications.
+        Client should send periodic ping messages to keep connection alive.
+      security: []
+      responses:
+        '101':
+          description: WebSocket connection established
+        '426':
+          description: Upgrade required
+
+components:
+  schemas:
+    WebSocketMessage:
+      oneOf:
+        - $ref: '#/components/schemas/ConnectedMessage'
+        - $ref: '#/components/schemas/HealthUpdateMessage'
+        - $ref: '#/components/schemas/LeaderboardUpdateMessage'
+        - $ref: '#/components/schemas/MOTDMessage'
+        - $ref: '#/components/schemas/PongMessage'
+      discriminator:
+        propertyName: type
+
+    ConnectedMessage:
+      type: object
+      required:
+        - type
+        - message
+      properties:
+        type:
+          type: string
+          enum: [CONNECTED]
+          description: Message type
+        message:
+          type: string
+          description: Welcome message
+          example: "Welcome to Firewall Defense"
+
+    HealthUpdateMessage:
+      type: object
+      required:
+        - type
+        - health
+      properties:
+        type:
+          type: string
+          enum: [HEALTH_UPDATE]
+          description: Message type
+        health:
+          type: integer
+          description: New global firewall integrity value
+          example: 5000
+          minimum: 0
+
+    LeaderboardUpdateMessage:
+      type: object
+      required:
+        - type
+        - leaderboard
+      properties:
+        type:
+          type: string
+          enum: [LEADERBOARD_UPDATE]
+          description: Message type
+        leaderboard:
+          type: array
+          description: Top 3 leaderboard entries (empty array if flushed)
+          items:
+            type: object
+            properties:
+              tagline:
+                type: string
+                description: Player display name
+              score:
+                type: integer
+                description: Cumulative total score
+        flushed:
+          type: boolean
+          description: True if leaderboard was just flushed
+          default: false
+
+    MOTDMessage:
+      type: object
+      required:
+        - type
+        - message
+      properties:
+        type:
+          type: string
+          enum: [MOTD]
+          description: Message type
+        message:
+          type: string
+          description: Message of the Day content
+
+    PongMessage:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [pong]
+          description: Response to ping
+
+    ClientPingMessage:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [ping]
+          description: Keep-alive ping message
+
+  examples:
+    connect:
+      summary: WebSocket connection
+      description: |
+        Client connects to `ws://localhost:3001/ws` and receives a CONNECTED message.
+        Client should then send periodic ping messages every 30 seconds.
+      value:
+        request: |
+          Client connects via WebSocket
+        response:
+          type: CONNECTED
+          message: "Welcome to Firewall Defense"
+
+    healthUpdate:
+      summary: Health update notification
+      description: |
+        Sent when global firewall health changes (e.g., after match completion).
+      value:
+        type: HEALTH_UPDATE
+        health: 5000
+
+    leaderboardUpdate:
+      summary: Leaderboard update notification
+      description: |
+        Sent when the top 3 leaderboard changes or is flushed.
+      value:
+        type: LEADERBOARD_UPDATE
+        leaderboard:
+          - tagline: "Defender-cbd5"
+            score: 1830
+        flushed: false
+
+    motd:
+      summary: Message of the Day broadcast
+      description: |
+        Sent when admin updates the MOTD.
+      value:
+        type: MOTD
+        message: "MESSAGE FROM ADMIN: Defenders of Cyber Earth, we need you!"
+

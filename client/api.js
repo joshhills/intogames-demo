@@ -1,8 +1,10 @@
 // This file abstracts all network communication
 // It's the "client-side" of your online systems
 
-const API_URL = 'http://localhost:3000/api';
-const WS_URL = 'ws://localhost:3001/ws';
+// These URLs can be overridden by setting window.API_URL and window.WS_URL before loading this script
+// For production, inject these via environment variables during build
+const API_URL = window.API_URL || 'http://localhost:3000/api';
+const WS_URL = window.WS_URL || 'ws://localhost:3001/ws';
 
 let jwtToken = null;
 let gameConfig = null;
@@ -121,7 +123,8 @@ let flushCountdownInterval = null;
 
 async function loadLeaderboardFlushInfo() {
   try {
-    const response = await fetch(`${API_URL}/leaderboard/flush-info`);
+    // Flush info is now included in the leaderboard endpoint
+    const response = await fetch(`${API_URL}/leaderboard`);
     if (!response.ok) {
       // Hide countdown if we can't fetch info
       const countdownEl = document.getElementById('leaderboard-reset-countdown');
@@ -132,7 +135,10 @@ async function loadLeaderboardFlushInfo() {
     }
     
     const data = await response.json();
-    leaderboardFlushInfo = data;
+    leaderboardFlushInfo = {
+      lastFlush: data.lastFlush,
+      flushIntervalMinutes: data.flushIntervalMinutes
+    };
     updateFlushCountdownDisplay();
   } catch (error) {
     console.error('Error loading leaderboard flush info:', error);
@@ -232,9 +238,18 @@ async function getGameConfig() {
 
 async function getLeaderboard() {
   try {
-    const response = await fetch(`${API_URL}/leaderboard/top3`);
-    const leaderboard = await response.json();
-    updateLeaderboardDisplay(leaderboard);
+    const response = await fetch(`${API_URL}/leaderboard`);
+    const data = await response.json();
+    // Update leaderboard display with top 3
+    updateLeaderboardDisplay(data.leaderboard || []);
+    // Update flush info if not already loaded
+    if (data.lastFlush !== undefined && data.flushIntervalMinutes !== undefined) {
+      leaderboardFlushInfo = {
+        lastFlush: data.lastFlush,
+        flushIntervalMinutes: data.flushIntervalMinutes
+      };
+      updateFlushCountdownDisplay();
+    }
   } catch (error) {
     console.error('Leaderboard Error:', error);
   }

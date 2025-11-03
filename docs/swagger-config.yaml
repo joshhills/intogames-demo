@@ -1,0 +1,7 @@
+urls:
+  - url: /docs/openapi-api-service.yaml
+    name: API Service
+  - url: /docs/openapi-admin-service.yaml
+    name: Admin Service
+  - url: /docs/openapi-push-service.yaml
+    name: Push Service (WebSocket)

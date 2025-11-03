@@ -1,0 +1,574 @@
+openapi: 3.0.3
+info:
+  title: Firewall Defense API Service
+  description: |
+    REST API for Firewall Defense game. Handles player authentication, profiles, 
+    match completion, leaderboards, global health, MOTD, and game configuration.
+    
+    All endpoints under `/api/admin/*` require the `X-Admin-API-Key` header.
+    Player endpoints require JWT authentication via `Authorization: Bearer <token>` header.
+  version: 1.0.0
+  contact:
+    name: Into Games Workshop
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+  - url: ${API_SERVICE_URL}
+    description: Production server (set via environment variable)
+
+tags:
+  - name: Authentication
+    description: Player enrollment and authentication
+  - name: Player
+    description: Player profile management
+  - name: Game
+    description: Game configuration and match submission
+  - name: Leaderboard
+    description: Top defenders leaderboard
+  - name: Firewall
+    description: Global firewall health status
+  - name: MOTD
+    description: Message of the Day
+  - name: Admin
+    description: Admin-only endpoints for live operations
+
+paths:
+  # === AUTHENTICATION ===
+  /api/auth/enroll:
+    post:
+      tags:
+        - Authentication
+      summary: Enroll and login player
+      description: |
+        Creates a new player account or retrieves existing player data.
+        Returns a JWT token for authenticated requests.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - local_uuid
+              properties:
+                local_uuid:
+                  type: string
+                  format: uuid
+                  description: Client-generated UUID for player identification
+                  example: "cbd58ea6-1234-5678-9abc-def012345678"
+      responses:
+        '200':
+          description: Successfully enrolled/logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT token for authenticated requests
+                  player:
+                    $ref: '#/components/schemas/Player'
+        '400':
+          description: Missing required field
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "local_uuid is required"
+
+  # === PLAYER ENDPOINTS ===
+  /api/player/setup:
+    post:
+      tags:
+        - Player
+      summary: Update player tagline and color
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tagline
+                - color
+              properties:
+                tagline:
+                  type: string
+                  description: Player display name
+                  example: "Defender-cbd5"
+                color:
+                  type: string
+                  format: color
+                  description: Hex color code for player visual
+                  example: "#FFFFFF"
+      responses:
+        '200':
+          description: Profile updated successfully
+        '400':
+          description: Missing required fields
+        '401':
+          description: Missing or invalid JWT token
+        '403':
+          description: JWT token expired or invalid
+
+  /api/player/profile:
+    get:
+      tags:
+        - Player
+      summary: Get current player profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Player profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '401':
+          description: Missing or invalid JWT token
+        '403':
+          description: JWT token expired or invalid
+
+  # === GAME ENDPOINTS ===
+  /api/game-config:
+    get:
+      tags:
+        - Game
+      summary: Get game configuration
+      description: Returns difficulty settings for easy, medium, and hard modes
+      responses:
+        '200':
+          description: Game configuration retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameConfig'
+
+  /api/match/complete:
+    post:
+      tags:
+        - Game
+      summary: Submit match completion and score
+      security:
+        - bearerAuth: []
+      description: |
+        Submits a completed match score. Updates player's cumulative total score,
+        global firewall health, and leaderboard. Returns the player's updated total score.
+        
+        Automatically flushes leaderboard if flush interval has elapsed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - score
+                - difficulty
+              properties:
+                score:
+                  type: integer
+                  description: Score for this match (can be negative)
+                  example: 260
+                difficulty:
+                  type: string
+                  enum: [easy, medium, hard]
+                  description: Difficulty level played
+                  example: "medium"
+      responses:
+        '200':
+          description: Match submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalScore:
+                    type: integer
+                    description: Player's updated cumulative total score
+                    example: 1830
+        '401':
+          description: Missing or invalid JWT token
+        '403':
+          description: JWT token expired or invalid
+
+  # === LEADERBOARD ENDPOINTS ===
+  /api/leaderboard:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get leaderboard and flush information
+      description: |
+        Returns the top 3 players by cumulative total score along with leaderboard flush information
+        (when it was last flushed and the flush interval).
+      responses:
+        '200':
+          description: Leaderboard and flush info retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+        '500':
+          description: Failed to retrieve leaderboard
+
+  # === FIREWALL ENDPOINTS ===
+  /api/firewall/status:
+    get:
+      tags:
+        - Firewall
+      summary: Get global firewall integrity
+      description: Returns current global health value (for polling)
+      responses:
+        '200':
+          description: Firewall status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  health:
+                    type: integer
+                    description: Current global firewall integrity
+                    example: 5000
+                    minimum: 0
+
+  # === MOTD ENDPOINTS ===
+  /api/motd:
+    get:
+      tags:
+        - MOTD
+      summary: Get Message of the Day
+      description: Returns the current persistent MOTD
+      responses:
+        '200':
+          description: MOTD retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  motd:
+                    type: string
+                    nullable: true
+                    description: Message of the Day, or null if not set
+                    example: "Defenders of Cyber Earth, we need you!"
+
+  # === ADMIN ENDPOINTS ===
+  /api/admin/health:
+    get:
+      tags:
+        - Admin
+      summary: Get global health and max health
+      security:
+        - adminApiKey: []
+      responses:
+        '200':
+          description: Health values retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  health:
+                    type: integer
+                    description: Current global firewall integrity
+                    example: 5000
+                  maxHealth:
+                    type: integer
+                    description: Maximum global firewall integrity
+                    example: 10000
+        '500':
+          description: Failed to retrieve health
+
+    post:
+      tags:
+        - Admin
+      summary: Update global health and/or max health
+      security:
+        - adminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                health:
+                  type: integer
+                  description: New current health (will be clamped to 0-maxHealth)
+                  minimum: 0
+                  example: 5000
+                maxHealth:
+                  type: integer
+                  description: New maximum health (must be at least 1)
+                  minimum: 1
+                  example: 10000
+      responses:
+        '200':
+          description: Health updated successfully
+        '400':
+          description: Invalid health value
+        '500':
+          description: Failed to update health
+
+  /api/admin/broadcast-motd:
+    post:
+      tags:
+        - Admin
+      summary: Update and broadcast Message of the Day
+      security:
+        - adminApiKey: []
+      description: |
+        Updates the persistent MOTD and broadcasts it to all connected clients via WebSocket.
+        The MOTD is saved to Redis for persistence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: New Message of the Day
+                  example: "Defenders of Cyber Earth, we need you!"
+      responses:
+        '200':
+          description: MOTD updated and broadcasted
+        '400':
+          description: Message is required
+
+  /api/admin/game-config:
+    post:
+      tags:
+        - Admin
+      summary: Update game configuration
+      security:
+        - adminApiKey: []
+      description: |
+        Updates the game configuration for all difficulty levels.
+        All difficulty levels (easy, medium, hard) must be provided.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameConfig'
+      responses:
+        '200':
+          description: Game config updated successfully
+        '400':
+          description: Invalid config format or values
+
+  /api/admin/leaderboard:
+    get:
+      tags:
+        - Admin
+      summary: Get full leaderboard
+      security:
+        - adminApiKey: []
+      description: Returns all leaderboard entries (not just top 3)
+      responses:
+        '200':
+          description: Full leaderboard retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminLeaderboardEntry'
+        '500':
+          description: Failed to retrieve leaderboard
+
+    delete:
+      tags:
+        - Admin
+      summary: Flush leaderboard
+      security:
+        - adminApiKey: []
+      description: |
+        Resets all leaderboard entries and player scores.
+        Broadcasts an empty leaderboard update to all connected clients.
+      responses:
+        '200':
+          description: Leaderboard flushed successfully
+        '500':
+          description: Failed to flush leaderboard
+
+  /api/admin/leaderboard-flush-interval:
+    get:
+      tags:
+        - Admin
+      summary: Get leaderboard flush interval
+      security:
+        - adminApiKey: []
+      responses:
+        '200':
+          description: Flush interval retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flushIntervalMinutes:
+                    type: integer
+                    description: Interval in minutes between automatic flushes
+                    example: 60
+
+    post:
+      tags:
+        - Admin
+      summary: Set leaderboard flush interval
+      security:
+        - adminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - flushIntervalMinutes
+              properties:
+                flushIntervalMinutes:
+                  type: integer
+                  description: Interval in minutes (must be at least 1)
+                  minimum: 1
+                  example: 60
+      responses:
+        '200':
+          description: Flush interval updated successfully
+        '400':
+          description: Invalid interval value
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /api/auth/enroll
+    adminApiKey:
+      type: apiKey
+      in: header
+      name: X-Admin-API-Key
+      description: Admin API key for admin endpoints
+
+  schemas:
+    Player:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique player identifier
+        tagline:
+          type: string
+          description: Player display name
+          example: "Defender-cbd5"
+        color:
+          type: string
+          format: color
+          description: Hex color code for player visual
+          example: "#FFFFFF"
+        totalScore:
+          type: integer
+          description: Cumulative total score across all games
+          example: 1830
+
+    GameConfig:
+      type: object
+      properties:
+        easy:
+          $ref: '#/components/schemas/DifficultyConfig'
+        medium:
+          $ref: '#/components/schemas/DifficultyConfig'
+        hard:
+          $ref: '#/components/schemas/DifficultyConfig'
+
+    DifficultyConfig:
+      type: object
+      properties:
+        holeCount:
+          type: integer
+          description: Number of vulnerability holes on the canvas
+          minimum: 0
+          example: 1
+        spawnRate:
+          type: integer
+          description: Bug spawn interval in milliseconds
+          minimum: 1
+          example: 750
+        maxSpeed:
+          type: number
+          format: float
+          description: Maximum bug movement speed
+          minimum: 0.1
+          example: 2.0
+        penalty:
+          type: integer
+          description: Score deducted per bug reaching a hole
+          minimum: 0
+          example: 10
+        defenseBonus:
+          type: integer
+          description: Score awarded per bug pushed off-screen
+          minimum: 0
+          example: 5
+        gameTimeSeconds:
+          type: integer
+          description: Match duration in seconds
+          minimum: 1
+          example: 60
+
+    LeaderboardResponse:
+      type: object
+      properties:
+        leaderboard:
+          type: array
+          description: Top 3 players by cumulative total score
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        lastFlush:
+          type: integer
+          format: int64
+          nullable: true
+          description: Unix timestamp (milliseconds) of last flush, or null if never flushed
+          example: 1762138000000
+        flushIntervalMinutes:
+          type: integer
+          description: Interval in minutes between automatic flushes
+          example: 60
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        tagline:
+          type: string
+          description: Player display name
+          example: "Defender-cbd5"
+        score:
+          type: integer
+          description: Cumulative total score
+          example: 1830
+
+    AdminLeaderboardEntry:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Player UUID
+        tagline:
+          type: string
+          description: Player display name
+        score:
+          type: integer
+          description: Cumulative total score
+

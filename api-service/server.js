@@ -24,7 +24,8 @@ const app = express();
 const port = 3000;
 
 // --- CONFIGURATION ---
-const JWT_SECRET = 'your-super-secret-key'; // NEVER hardcode in production!
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key'; // NEVER hardcode in production!
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'ADMIN_SUPER_SECRET_KEY';
 const GAME_CONFIG = {
   easy: { holeCount: 1, spawnRate: 1000, maxSpeed: 1.5, penalty: 5, defenseBonus: 5, gameTimeSeconds: 60 },
   medium: { holeCount: 1, spawnRate: 750, maxSpeed: 2, penalty: 10, defenseBonus: 5, gameTimeSeconds: 60 },
@@ -36,7 +37,7 @@ const GAME_CONFIG = {
 app.use(cors());
 app.use(express.json());
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token (for player endpoints)
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -47,6 +48,15 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   });
+};
+
+// Middleware to verify admin API key (for admin endpoints)
+const authenticateAdmin = (req, res, next) => {
+  const apiKey = req.headers['x-admin-api-key'];
+  if (!apiKey || apiKey !== ADMIN_API_KEY) {
+    return res.status(401).send({ error: 'Unauthorized: Invalid or missing admin API key' });
+  }
+  next();
 };
 
 // Function to publish a message for the WebSocket service to pick up
@@ -234,26 +244,39 @@ app.post('/api/match/complete', authenticateToken, async (req, res) => {
   res.json({ totalScore: newTotalScore });
 });
 
-// 5. Get Top 3 Leaderboard
-app.get('/api/leaderboard/top3', async (req, res) => {
-  // Get the top 3 cumulative total scores and their UUIDs from the ZSET
-  const topScores = await db.zRangeWithScores('leaderboard', 0, 2, { REV: true });
-  
-  // Fetch player details for each UUID
-  const leaderboard = await Promise.all(topScores.map(async entry => {
-    const player = await db.hGetAll(`player:${entry.value}`);
-    // Use the score from the sorted set (which is the cumulative total)
-    return {
-      tagline: player.tagline,
-      score: entry.score
-    };
-  }));
+// 5. Get Leaderboard (Top 3 + Flush Info)
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    // Get the top 3 cumulative total scores and their UUIDs from the ZSET
+    const topScores = await db.zRangeWithScores('leaderboard', 0, 2, { REV: true });
+    
+    // Fetch player details for each UUID
+    const leaderboard = await Promise.all(topScores.map(async entry => {
+      const player = await db.hGetAll(`player:${entry.value}`);
+      // Use the score from the sorted set (which is the cumulative total)
+      return {
+        tagline: player.tagline,
+        score: entry.score
+      };
+    }));
 
-  res.json(leaderboard);
+    // Get flush info
+    const lastFlush = await getLeaderboardLastFlush();
+    const flushIntervalMinutes = await getLeaderboardFlushInterval();
+
+    res.json({
+      leaderboard: leaderboard,
+      lastFlush: lastFlush,
+      flushIntervalMinutes: flushIntervalMinutes
+    });
+  } catch (error) {
+    console.error('Error getting leaderboard:', error);
+    res.status(500).send({ error: 'Failed to get leaderboard' });
+  }
 });
 
 // 5b. Get Full Leaderboard (for admin panel)
-app.get('/api/admin/leaderboard', async (req, res) => {
+app.get('/api/admin/leaderboard', authenticateAdmin, async (req, res) => {
   try {
     // Get all scores from the ZSET
     const allScores = await db.zRangeWithScores('leaderboard', 0, -1, { REV: true });
@@ -276,7 +299,7 @@ app.get('/api/admin/leaderboard', async (req, res) => {
 });
 
 // 5c. Flush Leaderboard (for admin panel)
-app.delete('/api/admin/leaderboard', async (req, res) => {
+app.delete('/api/admin/leaderboard', authenticateAdmin, async (req, res) => {
   try {
     const now = Date.now();
     
@@ -314,24 +337,8 @@ app.get('/api/firewall/status', async (req, res) => {
   res.json({ health });
 });
 
-// 6b. Get Leaderboard Flush Info
-app.get('/api/leaderboard/flush-info', async (req, res) => {
-  try {
-    const lastFlush = await getLeaderboardLastFlush();
-    const flushIntervalMinutes = await getLeaderboardFlushInterval();
-    
-    res.json({
-      lastFlush: lastFlush,
-      flushIntervalMinutes: flushIntervalMinutes
-    });
-  } catch (error) {
-    console.error('Error getting leaderboard flush info:', error);
-    res.status(500).send({ error: 'Failed to get flush info' });
-  }
-});
-
-// 6c. Get Leaderboard Flush Interval (for admin)
-app.get('/api/admin/leaderboard-flush-interval', async (req, res) => {
+// 6b. Get Leaderboard Flush Interval (for admin)
+app.get('/api/admin/leaderboard-flush-interval', authenticateAdmin, async (req, res) => {
   try {
     const interval = await getLeaderboardFlushInterval();
     res.json({ flushIntervalMinutes: interval });
@@ -342,7 +349,7 @@ app.get('/api/admin/leaderboard-flush-interval', async (req, res) => {
 });
 
 // 6d. Set Leaderboard Flush Interval (for admin)
-app.post('/api/admin/leaderboard-flush-interval', async (req, res) => {
+app.post('/api/admin/leaderboard-flush-interval', authenticateAdmin, async (req, res) => {
   try {
     const { flushIntervalMinutes } = req.body;
     
@@ -370,7 +377,7 @@ app.get('/api/motd', async (req, res) => {
 });
 
 // 8. Get Global Health and Max Health (for admin panel)
-app.get('/api/admin/health', async (req, res) => {
+app.get('/api/admin/health', authenticateAdmin, async (req, res) => {
   try {
     const health = await getGlobalHealth();
     const maxHealth = await getMaxHealth();
@@ -382,7 +389,7 @@ app.get('/api/admin/health', async (req, res) => {
 });
 
 // 9. Set Global Health (for admin panel)
-app.post('/api/admin/health', async (req, res) => {
+app.post('/api/admin/health', authenticateAdmin, async (req, res) => {
   try {
     const { health, maxHealth } = req.body;
     
@@ -423,7 +430,7 @@ app.post('/api/admin/health', async (req, res) => {
 // --- ADMIN API ENDPOINTS (For Admin Service) ---
 
 // 1. Send Message of the Day
-app.post('/api/admin/broadcast-motd', async (req, res) => {
+app.post('/api/admin/broadcast-motd', authenticateAdmin, async (req, res) => {
   try {
     const { message } = req.body;
     if (!message) {
@@ -447,7 +454,7 @@ app.post('/api/admin/broadcast-motd', async (req, res) => {
 });
 
 // 2. Update Game Configuration
-app.post('/api/admin/game-config', async (req, res) => {
+app.post('/api/admin/game-config', authenticateAdmin, async (req, res) => {
   try {
     const newConfig = req.body;
     
@@ -499,11 +506,18 @@ app.post('/api/admin/game-config', async (req, res) => {
 });
 
 // --- INITIALIZATION ---
-app.listen(port, () => {
-  console.log(`API Service listening at http://localhost:${port}`);
-});
+// Only start listening if this file is run directly (not imported for testing)
+const isTest = process.env.NODE_ENV === 'test';
+if (!isTest) {
+  app.listen(port, () => {
+    console.log(`API Service listening at http://localhost:${port}`);
+  });
 
-// We only need to check the connection status for the publisher client here
-redisClient.on('connect', () => {
-  console.log('API Service connected to Redis (Publisher Client).');
-});
+  // We only need to check the connection status for the publisher client here
+  redisClient.on('connect', () => {
+    console.log('API Service connected to Redis (Publisher Client).');
+  });
+}
+
+// Export app for testing
+export { app, GAME_CONFIG };

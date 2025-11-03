@@ -15,7 +15,7 @@ services:
       - api-service
       - push-service
 
-  # 2. The Backend REST API (Node.js + Fastify)
+  # 2. The Backend REST API (Node.js + Express)
   api-service:
     build:
       context: .
@@ -24,13 +24,11 @@ services:
       - "3000:3000" # REST API on http://localhost:3000
     environment:
       # These are the service names Docker Compose uses for DNS
-      - MONGO_URI=mongodb://mongo:27017/firewall_db
       - REDIS_URI=redis://redis:6379
       - PUSH_SERVICE_URL=http://push-service:3001
       - JWT_SECRET=THIS_IS_A_VERY_SECRET_KEY_FOR_THE_WORKSHOP
       - ADMIN_API_KEY=ADMIN_SUPER_SECRET_KEY # Hardcoded key for admin tool
     depends_on:
-      - mongo
       - redis
 
   # 3. The Real-time Push Service (Node.js + WebSocket)
@@ -43,15 +41,7 @@ services:
     environment:
       - REDIS_URI=redis://redis:6379
     
-  # 4. The Persistent Database (for profiles, scores)
-  mongo:
-    image: mongo:latest
-    ports:
-      - "27017:27017" # For optional inspection
-    volumes:
-      - mongo-data:/data/db
-
-  # 5. The In-Memory Cache (for global health)
+  # 4. The Data Store (Redis - used for player profiles, leaderboards, health, and Pub/Sub)
   redis:
     image: redis:latest
     ports:
@@ -64,10 +54,23 @@ services:
     build: ./admin-service
     ports:
       - "4000:4000" # Access admin tool at http://localhost:4000
+    environment:
+      - API_SERVICE_URL=http://api-service:3000
     depends_on:
       - api-service # Depends on the API to proxy requests
 
+  # 7. Swagger UI (API Documentation)
+  swagger-ui:
+    build:
+      context: .
+      dockerfile: docs/swagger-ui.Dockerfile
+    ports:
+      - "8081:8080" # Access Swagger UI at http://localhost:8081
+    volumes:
+      - ./docs:/usr/share/nginx/html/docs:ro
+    environment:
+      - API_URL=${API_SERVICE_URL:-http://localhost:3000}
+
 volumes:
-  mongo-data:
   redis-data:
 

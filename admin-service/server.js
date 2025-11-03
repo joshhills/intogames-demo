@@ -10,7 +10,9 @@ import axios from 'axios';
 const app = Fastify({ logger: true });
 const PORT = 4000;
 // This is the "internal" Docker DNS name for the API service
-const API_SERVICE_URL = 'http://api-service:3000'; 
+// Can be overridden via environment variable for different deployments
+const API_SERVICE_URL = process.env.API_SERVICE_URL || 'http://api-service:3000';
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:8080'; 
 // This is the hardcoded secret for our admin tool to talk to the API
 const ADMIN_API_KEY = 'ADMIN_SUPER_SECRET_KEY'; 
 // This is a hardcoded, mock admin login
@@ -21,7 +23,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // --- PLUGINS ---
-app.register(fastifyCors, { origin: 'http://localhost:8080', credentials: true }); // Allow client
+app.register(fastifyCors, { origin: CLIENT_URL, credentials: true }); // Allow client
 app.register(fastifyCookie);
 app.register(fastifyStatic, {
   root: path.join(__dirname, 'public'),
@@ -29,13 +31,27 @@ app.register(fastifyStatic, {
 });
 
 // --- AUTH HOOK (Mock Session) ---
-// This hook checks for a valid session cookie
+// This is a middleware function that protects admin panel endpoints.
+// It runs BEFORE each endpoint handler to check if the user is logged in.
+//
+// How it works:
+// 1. When user logs in via /login, they get a cookie named "session" with value "valid-admin-session"
+// 2. When user tries to access admin endpoints (like /api/game-config), this hook checks for that cookie
+// 3. If cookie exists and is correct -> request continues to the endpoint
+// 4. If cookie is missing/wrong -> request is rejected with 401 Unauthorized
+//
+// This prevents unauthorized access to admin functionality without logging in.
 app.decorate('adminAuth', async (request, reply) => {
   try {
+    // Check if the request has the correct session cookie
     if (request.cookies.session !== 'valid-admin-session') {
+      // No valid session cookie = user not logged in = reject request
       reply.status(401).send({ error: 'Unauthorized' });
+      return; // Stop here, don't continue to endpoint
     }
+    // Cookie is valid, let request continue to the endpoint handler
   } catch (err) {
+    // Error reading cookies = reject request
     reply.status(401).send({ error: 'Unauthorized' });
   }
 });
@@ -153,10 +169,13 @@ app.post('/api/leaderboard-flush-interval', { preHandler: [app.adminAuth] }, asy
 // 3i. Get leaderboard flush info (proxies to the API service)
 app.get('/api/leaderboard-flush-info', { preHandler: [app.adminAuth] }, async (request, reply) => {
   try {
-    const response = await axios.get(`${API_SERVICE_URL}/api/leaderboard/flush-info`, {
-      headers: { 'X-Admin-API-Key': ADMIN_API_KEY }
+    // The flush info is now included in the /api/leaderboard response
+    const response = await axios.get(`${API_SERVICE_URL}/api/leaderboard`);
+    // Extract just the flush info from the combined response
+    reply.send({
+      lastFlush: response.data.lastFlush,
+      flushIntervalMinutes: response.data.flushIntervalMinutes
     });
-    reply.send(response.data);
   } catch (error) {
     reply.status(500).send({ error: 'Failed to fetch flush info from API service' });
   }
@@ -298,13 +317,20 @@ app.post('/api/motd', { preHandler: [app.adminAuth] }, async (request, reply) =>
 });
 
 // --- SERVER START ---
-const start = async () => {
-  try {
-    await app.listen({ port: PORT, host: '0.0.0.0' });
-    app.log.info(`Admin Service listening on ${PORT}`);
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-};
-start();
+// Only start listening if this file is run directly (not imported for testing)
+const isTest = process.env.NODE_ENV === 'test';
+if (!isTest) {
+  const start = async () => {
+    try {
+      await app.listen({ port: PORT, host: '0.0.0.0' });
+      app.log.info(`Admin Service listening on ${PORT}`);
+    } catch (err) {
+      app.log.error(err);
+      process.exit(1);
+    }
+  };
+  start();
+}
+
+// Export app for testing
+export { app };

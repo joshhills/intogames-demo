@@ -72,6 +72,12 @@
   </div>
 
   <!-- Load our game logic -->
+  <!-- Optionally inject API URLs via environment variables before loading api.js -->
+  <script>
+    // These can be set via environment variable injection during deployment
+    // Example: window.API_URL = 'https://api.example.com/api';
+    // Example: window.WS_URL = 'wss://push.example.com/ws';
+  </script>
   <script src="api.js"></script>
   <script src="sketch.js"></script>
 </body>
