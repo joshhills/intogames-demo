@@ -51,13 +51,13 @@ button:hover {
     background-color: #0056b3;
 }
 
-#login-error, #motd-status, #config-status {
+#login-error, #motd-status, #config-status, #health-status, #leaderboard-status, #flush-interval-status {
     color: #d9534f;
     font-size: 0.9em;
     margin-top: 10px;
 }
 
-#motd-status.success, #config-status.success {
+#motd-status.success, #config-status.success, #health-status.success, #leaderboard-status.success, #flush-interval-status.success {
     color: #5cb85c;
 }
 
@@ -65,4 +65,68 @@ form label {
     display: inline-block;
     width: 150px;
     margin-bottom: 10px;
+}
+
+/* Tab Styles */
+.tab-buttons {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #eee;
+}
+
+.tab-btn {
+    background-color: #f8f9fa;
+    color: #333;
+    padding: 10px 20px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 1em;
+    margin-bottom: -2px;
+    border-radius: 4px 4px 0 0;
+}
+
+.tab-btn:hover {
+    background-color: #e9ecef;
+}
+
+.tab-btn.active {
+    background-color: #fff;
+    color: #007bff;
+    border-bottom-color: #007bff;
+    font-weight: bold;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+button:disabled:hover {
+    background-color: #ccc;
+}
+
+.config-input {
+    transition: border-color 0.2s;
+}
+
+.config-input.changed {
+    border-color: #ffc107;
+    border-width: 2px;
+}
+
+input.changed {
+    border-color: #ffc107 !important;
+    border-width: 2px !important;
+    transition: border-color 0.2s;
 }

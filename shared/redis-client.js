@@ -146,6 +146,82 @@ async function setGlobalHealth(value) {
   }
 }
 
+async function getMaxHealth() {
+  try {
+    const maxHealth = await redisClient.get('global_max_health');
+    return maxHealth ? parseInt(maxHealth, 10) : 1000; // Default to 1000 if not set
+  } catch (error) {
+    console.error('Error getting max health:', error);
+    return 1000;
+  }
+}
+
+async function setMaxHealth(value) {
+  try {
+    await redisClient.set('global_max_health', value.toString());
+  } catch (error) {
+    console.error('Error setting max health:', error);
+  }
+}
+
+async function getMOTD() {
+  try {
+    const motd = await redisClient.get('global_motd');
+    return motd || null;
+  } catch (error) {
+    console.error('Error getting MOTD:', error);
+    return null;
+  }
+}
+
+async function setMOTD(value) {
+  try {
+    if (value && value.trim()) {
+      await redisClient.set('global_motd', value);
+    } else {
+      await redisClient.del('global_motd');
+    }
+  } catch (error) {
+    console.error('Error setting MOTD:', error);
+  }
+}
+
+async function getLeaderboardLastFlush() {
+  try {
+    const timestamp = await redisClient.get('leaderboard_last_flush');
+    return timestamp ? parseInt(timestamp, 10) : null;
+  } catch (error) {
+    console.error('Error getting leaderboard last flush:', error);
+    return null;
+  }
+}
+
+async function setLeaderboardLastFlush(timestamp) {
+  try {
+    await redisClient.set('leaderboard_last_flush', timestamp.toString());
+  } catch (error) {
+    console.error('Error setting leaderboard last flush:', error);
+  }
+}
+
+async function getLeaderboardFlushInterval() {
+  try {
+    const interval = await redisClient.get('leaderboard_flush_interval_minutes');
+    return interval ? parseInt(interval, 10) : 60; // Default to 60 minutes if not set
+  } catch (error) {
+    console.error('Error getting leaderboard flush interval:', error);
+    return 60;
+  }
+}
+
+async function setLeaderboardFlushInterval(minutes) {
+  try {
+    await redisClient.set('leaderboard_flush_interval_minutes', minutes.toString());
+  } catch (error) {
+    console.error('Error setting leaderboard flush interval:', error);
+  }
+}
+
 // --- WEBSOCKET CONNECTION HANDLER ---
 // This function is called when a new WebSocket connection is established
 // It also initializes the subscriber client if not already done
@@ -209,6 +285,24 @@ redisClient.get('global_health').then((health) => {
   console.error('Error initializing global health:', error);
 });
 
+redisClient.get('global_max_health').then((maxHealth) => {
+  if (maxHealth === null) {
+    redisClient.set('global_max_health', '1000');
+    console.log('Initialized global_max_health to 1000.');
+  }
+}).catch((error) => {
+  console.error('Error initializing global max health:', error);
+});
+
+redisClient.get('leaderboard_flush_interval_minutes').then((interval) => {
+  if (interval === null) {
+    redisClient.set('leaderboard_flush_interval_minutes', '60');
+    console.log('Initialized leaderboard_flush_interval_minutes to 60.');
+  }
+}).catch((error) => {
+  console.error('Error initializing leaderboard flush interval:', error);
+});
+
 // Getter for subscriberClient that initializes on first access
 function getSubscriberClient() {
   return initializeSubscriber();
@@ -221,6 +315,14 @@ export {
   getSubscriberClient as subscriberClient,
   getGlobalHealth,
   setGlobalHealth,
+  getMaxHealth,
+  setMaxHealth,
+  getMOTD,
+  setMOTD,
+  getLeaderboardLastFlush,
+  setLeaderboardLastFlush,
+  getLeaderboardFlushInterval,
+  setLeaderboardFlushInterval,
   handleNewConnection
 };
 

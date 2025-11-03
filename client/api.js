@@ -8,6 +8,14 @@ let jwtToken = null;
 let gameConfig = null;
 
 // --- HELPER FUNCTIONS ---
+// Helper function to format numbers with thousands separators
+function formatNumber(num) {
+  if (num === null || num === undefined || isNaN(num)) {
+    return num;
+  }
+  return Number(num).toLocaleString('en-US');
+}
+
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -88,10 +96,94 @@ async function getProfile() {
     const profile = await response.json();
     document.getElementById('tagline-input').value = profile.tagline;
     document.getElementById('color-input').value = profile.color;
+    
+    // Update player's total score display
+    if (profile.totalScore !== undefined) {
+      updatePlayerScore(profile.totalScore);
+    }
+    
     // Notify sketch.js that the profile is loaded
     window.dispatchEvent(new CustomEvent('profileLoaded', { detail: profile }));
   } catch (error) {
     console.error('Get Profile Error:', error);
+  }
+}
+
+function updatePlayerScore(score) {
+  const scoreEl = document.getElementById('player-total-score');
+  if (scoreEl) {
+    scoreEl.textContent = formatNumber(score);
+  }
+}
+
+let leaderboardFlushInfo = null;
+let flushCountdownInterval = null;
+
+async function loadLeaderboardFlushInfo() {
+  try {
+    const response = await fetch(`${API_URL}/leaderboard/flush-info`);
+    if (!response.ok) {
+      // Hide countdown if we can't fetch info
+      const countdownEl = document.getElementById('leaderboard-reset-countdown');
+      if (countdownEl) {
+        countdownEl.textContent = '';
+      }
+      return;
+    }
+    
+    const data = await response.json();
+    leaderboardFlushInfo = data;
+    updateFlushCountdownDisplay();
+  } catch (error) {
+    console.error('Error loading leaderboard flush info:', error);
+  }
+}
+
+async function updateLeaderboardFlushCountdown() {
+  // Load flush info once, then use local timer
+  await loadLeaderboardFlushInfo();
+  
+  // Clear existing interval
+  if (flushCountdownInterval) {
+    clearInterval(flushCountdownInterval);
+    flushCountdownInterval = null;
+  }
+  
+  // Update countdown every second (no API calls, just local calculation)
+  flushCountdownInterval = setInterval(updateFlushCountdownDisplay, 1000);
+}
+
+function updateFlushCountdownDisplay() {
+  const countdownEl = document.getElementById('leaderboard-reset-countdown');
+  if (!countdownEl || !leaderboardFlushInfo) {
+    return;
+  }
+  
+  if (!leaderboardFlushInfo.lastFlush) {
+    countdownEl.textContent = '';
+    return;
+  }
+  
+  const now = Date.now();
+  const lastFlush = leaderboardFlushInfo.lastFlush;
+  const flushIntervalMs = leaderboardFlushInfo.flushIntervalMinutes * 60 * 1000;
+  const nextFlush = lastFlush + flushIntervalMs;
+  const timeUntilFlush = nextFlush - now;
+  
+  if (timeUntilFlush <= 0) {
+    countdownEl.textContent = 'Resets soon...';
+    // Reload flush info if time has elapsed (might have been auto-flushed)
+    setTimeout(loadLeaderboardFlushInfo, 2000);
+    return;
+  }
+  
+  const minutes = Math.floor(timeUntilFlush / 60000);
+  const seconds = Math.floor((timeUntilFlush % 60000) / 1000);
+  
+  if (minutes > 0) {
+    countdownEl.textContent = `Resets in ${minutes}m ${seconds}s`;
+  } else {
+    countdownEl.textContent = `Resets in ${seconds}s`;
   }
 }
 
@@ -125,14 +217,15 @@ async function getGameConfig() {
     console.log('Game Config Loaded:', gameConfig);
     // Enable the start button now that we have config
     document.getElementById('start-game-btn').disabled = false;
+    
   } catch (error) {
     console.error('Game Config Error:', error);
     showNotification('Error loading game config. Using defaults.');
     // Fallback in case API is down
     gameConfig = {
-      easy: { holeCount: 1, spawnRate: 1000, maxSpeed: 1.5, penalty: 5, defenseBonus: 5, maxHealth: 200 },
-      medium: { holeCount: 1, spawnRate: 750, maxSpeed: 2, penalty: 10, defenseBonus: 5, maxHealth: 300 },
-      hard: { holeCount: 2, spawnRate: 500, maxSpeed: 2.5, penalty: 15, defenseBonus: 5, maxHealth: 400 }
+      easy: { holeCount: 1, spawnRate: 1000, maxSpeed: 1.5, penalty: 5, defenseBonus: 5, gameTimeSeconds: 60 },
+      medium: { holeCount: 1, spawnRate: 750, maxSpeed: 2, penalty: 10, defenseBonus: 5, gameTimeSeconds: 60 },
+      hard: { holeCount: 2, spawnRate: 500, maxSpeed: 2.5, penalty: 15, defenseBonus: 5, gameTimeSeconds: 60 }
     };
   }
 }
@@ -141,44 +234,90 @@ async function getLeaderboard() {
   try {
     const response = await fetch(`${API_URL}/leaderboard/top3`);
     const leaderboard = await response.json();
-    const listEl = document.getElementById('leaderboard-list');
-    listEl.innerHTML = leaderboard.map(entry => 
-      `<li>${entry.tagline} - ${entry.score}</li>`
-    ).join('');
-    if (leaderboard.length === 0) {
-      listEl.innerHTML = '<li>No scores yet!</li>';
-    }
+    updateLeaderboardDisplay(leaderboard);
   } catch (error) {
     console.error('Leaderboard Error:', error);
   }
 }
 
-// This is the "Polling" method (for demonstration)
-async function getFirewallStatus_Polling() {
-  try {
-    const response = await fetch(`${API_URL}/firewall/status`);
-    const data = await response.json();
-    document.getElementById('global-health-value').textContent = data.health;
-  } catch (error) {
-    console.error('Firewall Status Error:', error);
+function updateLeaderboardDisplay(leaderboard) {
+  const listEl = document.getElementById('leaderboard-list');
+  if (!listEl) return;
+  
+  listEl.innerHTML = leaderboard.map(entry => 
+    `<li>${entry.tagline} - ${formatNumber(entry.score)}</li>`
+  ).join('');
+  if (leaderboard.length === 0) {
+    listEl.innerHTML = '<li>No scores yet!</li>';
   }
 }
 
-async function submitMatchScore(score) {
+// This is the "Polling" method (for demonstration)
+        async function getFirewallStatus_Polling() {
+          try {
+            const response = await fetch(`${API_URL}/firewall/status`);
+            const data = await response.json();
+            document.getElementById('global-health-value').textContent = formatNumber(data.health);
+          } catch (error) {
+            console.error('Firewall Status Error:', error);
+          }
+        }
+
+async function getMOTD() {
+  try {
+    const response = await fetch(`${API_URL}/motd`);
+    const data = await response.json();
+    if (data.motd) {
+      displayMOTD(data.motd);
+    } else {
+      hideMOTD();
+    }
+  } catch (error) {
+    console.error('MOTD Error:', error);
+    hideMOTD();
+  }
+}
+
+function displayMOTD(message) {
+  const container = document.getElementById('motd-container');
+  const valueEl = document.getElementById('motd-value');
+  if (container && valueEl) {
+    valueEl.textContent = message;
+    container.style.display = 'block';
+  }
+}
+
+function hideMOTD() {
+  const container = document.getElementById('motd-container');
+  if (container) {
+    container.style.display = 'none';
+  }
+}
+
+async function submitMatchScore(score, difficulty) {
   if (!jwtToken) return;
   try {
-    await fetch(`${API_URL}/match/complete`, {
+    const response = await fetch(`${API_URL}/match/complete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`,
       },
-      body: JSON.stringify({ score }),
+      body: JSON.stringify({ score, difficulty }),
     });
-    // We don't need to refresh the leaderboard here,
-    // the push service will tell us if there's a new top score.
-    // And it will also tell us the new health.
-    showNotification('Defense Report Submitted!');
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Update player's own score display
+      if (data.totalScore !== undefined) {
+        updatePlayerScore(data.totalScore);
+      }
+      // Refresh flush info in case leaderboard was auto-flushed
+      loadLeaderboardFlushInfo();
+      showNotification('Defense Report Submitted!');
+    } else {
+      throw new Error('Failed to submit score');
+    }
   } catch (error) {
     console.error('Submit Score Error:', error);
   }
@@ -227,8 +366,10 @@ function connectWebSocket() {
     }
     
     // Get the *initial* health and leaderboard on connect
-    getFirewallStatus_Polling();
-    getLeaderboard();
+            getFirewallStatus_Polling();
+            getLeaderboard();
+            getMOTD();
+            updateLeaderboardFlushCountdown(); // Start countdown timer
     
     // Send a ping to keep connection alive
     pingInterval = setInterval(() => {
@@ -256,16 +397,38 @@ function connectWebSocket() {
         return;
       }
 
-      if (data.type === 'HEALTH_UPDATE') {
-        document.getElementById('global-health-value').textContent = data.health;
-      }
+              if (data.type === 'HEALTH_UPDATE') {
+                document.getElementById('global-health-value').textContent = formatNumber(data.health);
+              }
 
       if (data.type === 'NEW_TOP_DEFENDER') {
         showNotification(data.message);
         getLeaderboard();
       }
       
+      if (data.type === 'LEADERBOARD_UPDATE') {
+        // Update the leaderboard display with new data
+        updateLeaderboardDisplay(data.leaderboard);
+        getLeaderboard(); // Also refresh to ensure consistency
+        
+        // If leaderboard was flushed, show notification and reset countdown
+        if (data.flushed) {
+          showNotification('Leaderboard has been reset!');
+          loadLeaderboardFlushInfo(); // Reload flush info to get new timestamp
+          // Reset player's own score display to 0 since all scores were reset
+          updatePlayerScore(0);
+          // Also refresh profile to ensure consistency
+          getProfile();
+        }
+      }
+      
       if (data.type === 'MOTD') {
+        // Extract the actual message (remove "MESSAGE FROM ADMIN: " prefix if present)
+        let motdMessage = data.message;
+        if (motdMessage.startsWith('MESSAGE FROM ADMIN: ')) {
+          motdMessage = motdMessage.substring('MESSAGE FROM ADMIN: '.length);
+        }
+        displayMOTD(motdMessage);
         showNotification(data.message, true);
       }
     } catch (error) {

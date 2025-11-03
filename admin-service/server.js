@@ -72,27 +72,228 @@ app.get('/api/game-config', { preHandler: [app.adminAuth] }, async (request, rep
   }
 });
 
+// 3b. Get current MOTD (proxies to the API service)
+app.get('/api/motd', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const response = await axios.get(`${API_SERVICE_URL}/api/motd`);
+    reply.send(response.data);
+  } catch (error) {
+    reply.status(500).send({ error: 'Failed to fetch MOTD from API service' });
+  }
+});
+
+// 3c. Get current health (proxies to the API service)
+app.get('/api/health', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const response = await axios.get(`${API_SERVICE_URL}/api/admin/health`);
+    reply.send(response.data);
+  } catch (error) {
+    reply.status(500).send({ error: 'Failed to fetch health from API service' });
+  }
+});
+
+// 3e. Get leaderboard (proxies to the API service)
+app.get('/api/leaderboard', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const response = await axios.get(`${API_SERVICE_URL}/api/admin/leaderboard`, {
+      headers: { 'X-Admin-API-Key': ADMIN_API_KEY }
+    });
+    reply.send(response.data);
+  } catch (error) {
+    reply.status(500).send({ error: 'Failed to fetch leaderboard from API service' });
+  }
+});
+
+// 3g. Get leaderboard flush interval (proxies to the API service)
+app.get('/api/leaderboard-flush-interval', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const response = await axios.get(`${API_SERVICE_URL}/api/admin/leaderboard-flush-interval`, {
+      headers: { 'X-Admin-API-Key': ADMIN_API_KEY }
+    });
+    reply.send(response.data);
+  } catch (error) {
+    reply.status(500).send({ error: 'Failed to fetch flush interval from API service' });
+  }
+});
+
+// 3h. Update leaderboard flush interval (proxies to the API service)
+app.post('/api/leaderboard-flush-interval', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    app.log.info('Flush interval update request received:', { body: request.body });
+    
+    const response = await axios.post(`${API_SERVICE_URL}/api/admin/leaderboard-flush-interval`, request.body, {
+      headers: {
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+    
+    app.log.info('Flush interval successfully updated on API service');
+    reply.send({ success: true });
+  } catch (error) {
+    const errorDetails = {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: `${API_SERVICE_URL}/api/admin/leaderboard-flush-interval`,
+      requestBody: request.body
+    };
+    
+    app.log.error('Flush interval update error:', errorDetails);
+    
+    reply.status(500).send({
+      error: 'Failed to update flush interval',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+// 3i. Get leaderboard flush info (proxies to the API service)
+app.get('/api/leaderboard-flush-info', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const response = await axios.get(`${API_SERVICE_URL}/api/leaderboard/flush-info`, {
+      headers: { 'X-Admin-API-Key': ADMIN_API_KEY }
+    });
+    reply.send(response.data);
+  } catch (error) {
+    reply.status(500).send({ error: 'Failed to fetch flush info from API service' });
+  }
+});
+
+// 3f. Flush leaderboard (proxies to the API service)
+app.delete('/api/leaderboard', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    app.log.info('Leaderboard flush request received');
+    
+    const response = await axios.delete(`${API_SERVICE_URL}/api/admin/leaderboard`, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+    
+    app.log.info('Leaderboard successfully flushed on API service');
+    reply.send({ success: true });
+  } catch (error) {
+    const errorDetails = {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: `${API_SERVICE_URL}/api/admin/leaderboard`
+    };
+    
+    app.log.error('Leaderboard flush error:', errorDetails);
+    
+    reply.status(500).send({ 
+      error: 'Failed to flush leaderboard',
+      details: error.response?.data || error.message 
+    });
+  }
+});
+
+// 3d. Update health (proxies to the API service)
+app.post('/api/health', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    app.log.info('Health update request received:', { body: request.body });
+    
+    const response = await axios.post(`${API_SERVICE_URL}/api/admin/health`, request.body, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+    
+    app.log.info('Health successfully updated on API service');
+    reply.send({ success: true });
+  } catch (error) {
+    const errorDetails = {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: `${API_SERVICE_URL}/api/admin/health`,
+      requestBody: request.body
+    };
+    
+    app.log.error('Health update error:', errorDetails);
+    
+    reply.status(500).send({ 
+      error: 'Failed to update health',
+      details: error.response?.data || error.message 
+    });
+  }
+});
+
 // 4. Update game config (proxies to the API service with secret key)
 app.post('/api/game-config', { preHandler: [app.adminAuth] }, async (request, reply) => {
   try {
-    await axios.post(`${API_SERVICE_URL}/api/admin/game-config`, request.body, {
-      headers: { 'X-Admin-API-Key': ADMIN_API_KEY } // Use the secret key
+    app.log.info('Game config update request received:', { body: request.body });
+    
+    const response = await axios.post(`${API_SERVICE_URL}/api/admin/game-config`, request.body, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
     });
+    
+    app.log.info('Game config successfully updated on API service');
     reply.send({ success: true });
   } catch (error) {
-    reply.status(500).send({ error: 'Failed to update config' });
+    const errorDetails = {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: `${API_SERVICE_URL}/api/admin/game-config`,
+      requestBody: request.body
+    };
+    
+    app.log.error('Game config update error:', errorDetails);
+    
+    reply.status(500).send({ 
+      error: 'Failed to update config',
+      details: error.response?.data || error.message 
+    });
   }
 });
 
 // 5. Send Message of the Day (proxies to the API service with secret key)
 app.post('/api/motd', { preHandler: [app.adminAuth] }, async (request, reply) => {
   try {
-    await axios.post(`${API_SERVICE_URL}/api/admin/motd`, request.body, {
-      headers: { 'X-Admin-API-Key': ADMIN_API_KEY }
+    app.log.info('MOTD request received:', { body: request.body });
+    
+    const response = await axios.post(`${API_SERVICE_URL}/api/admin/broadcast-motd`, request.body, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
     });
+    
+    app.log.info('MOTD successfully forwarded to API service');
     reply.send({ success: true });
   } catch (error) {
-    reply.status(500).send({ error: 'Failed to send MOTD' });
+    const errorDetails = {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: `${API_SERVICE_URL}/api/admin/broadcast-motd`,
+      requestBody: request.body
+    };
+    
+    app.log.error('MOTD Error:', errorDetails);
+    
+    reply.status(500).send({ 
+      error: 'Failed to send MOTD',
+      details: error.response?.data || error.message 
+    });
   }
 });
 

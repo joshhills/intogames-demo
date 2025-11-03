@@ -27,6 +27,26 @@ function setup() {
   const canvas = createCanvas(800, 600);
   canvas.parent('canvas-container');
   
+  // Set up cursor visibility based on game state and mouse position
+  const canvasElement = canvas.elt;
+  
+  // Function to update cursor based on current game state
+  const updateCursor = () => {
+    if (gameState === 'MIDGAME') {
+      canvasElement.style.cursor = 'none';
+    } else {
+      canvasElement.style.cursor = 'default';
+    }
+  };
+  
+  canvasElement.addEventListener('mouseenter', updateCursor);
+  canvasElement.addEventListener('mouseleave', () => {
+    canvasElement.style.cursor = 'default';
+  });
+  
+  // Store reference for state changes
+  window.updateCursorVisibility = updateCursor;
+  
   frameRate(60);
   
   // Configure world physics
@@ -81,10 +101,7 @@ function draw() {
   background(0, 10, 0);
   
   if (gameState === 'PREGAME') {
-    // Show cursor in pregame
-    if (typeof canvas !== 'undefined' && canvas.elt) {
-      canvas.elt.style.cursor = 'default';
-    }
+    // Cursor visibility handled by mouseenter/mouseleave events
     
     // Hide all game actors during pregame
     if (playerSprite) playerSprite.visible = false;
@@ -101,10 +118,8 @@ function draw() {
     text('Click "Start Game" to begin', width / 2, height / 2 + 40);
     pop();
   } else if (gameState === 'MIDGAME') {
-    // Hide cursor during gameplay
-    if (typeof canvas !== 'undefined' && canvas.elt) {
-      canvas.elt.style.cursor = 'none';
-    }
+    // Cursor visibility handled by mouseenter/mouseleave events
+    // Only hide when mouse is over canvas
     
     // Show all game actors during gameplay
     if (playerSprite) playerSprite.visible = true;
@@ -203,7 +218,7 @@ function draw() {
         const normalizedY = dy / distance;
         
         // Apply strong bounce velocity away from player
-        const bounceSpeed = 100; // Increased for more powerful bounces
+        const bounceSpeed = 50;
         bug.velocity.x = normalizedX * bounceSpeed;
         bug.velocity.y = normalizedY * bounceSpeed;
         
@@ -245,10 +260,7 @@ function draw() {
       }
     }
   } else if (gameState === 'POSTGAME') {
-    // Show cursor in postgame
-    if (typeof canvas !== 'undefined' && canvas.elt) {
-      canvas.elt.style.cursor = 'default';
-    }
+    // Cursor visibility handled by mouseenter/mouseleave events
     
     // Hide all game actors during postgame
     if (playerSprite) playerSprite.visible = false;
@@ -266,10 +278,10 @@ function draw() {
     fill(0, 255, 0);
     textAlign(CENTER, CENTER);
     textSize(24);
-    text('Game Ended!', width / 2, height / 2 - 40);
-    textSize(20);
-    text(`Final Score: ${playerScore}`, width / 2, height / 2);
-    textSize(16);
+            text('Game Ended!', width / 2, height / 2 - 40);
+            textSize(20);
+            text(`Final Score: ${playerScore.toLocaleString('en-US')}`, width / 2, height / 2);
+            textSize(16);
     text('Click "Start Game" to play again', width / 2, height / 2 + 40);
     pop();
   }
@@ -385,6 +397,10 @@ function spawnBug() {
 }
 
 function startGame() {
+  // Update cursor when game starts
+  if (window.updateCursorVisibility) {
+    window.updateCursorVisibility();
+  }
   currentDifficulty = document.getElementById('difficulty').value;
   currentConfig = gameConfig[currentDifficulty];
   
@@ -394,7 +410,7 @@ function startGame() {
   }
   
   playerScore = 0;
-  gameTimer = 60;
+  gameTimer = currentConfig.gameTimeSeconds || 60;
   gameState = 'MIDGAME';
   
   // Clear old game objects
@@ -461,13 +477,17 @@ function startGame() {
 
 function endGame() {
   gameState = 'POSTGAME';
+  // Update cursor when game ends
+  if (window.updateCursorVisibility) {
+    window.updateCursorVisibility();
+  }
   
   clearInterval(bugSpawnInterval);
   clearInterval(gameTimerInterval);
   
   noLoop();
   
-  submitMatchScore(playerScore);
+  submitMatchScore(playerScore, currentDifficulty);
   
   // Resume loop to show POSTGAME screen
   loop();
@@ -489,18 +509,18 @@ function updateUI() {
     timerEl.style.display = 'none';
     startBtn.style.display = 'block';
     diffSelect.style.display = 'block';
-  } else if (gameState === 'MIDGAME') {
-    statusEl.textContent = `State: ${gameState}`;
-    statusEl.style.display = 'block';
-    scoreEl.textContent = `Score: ${playerScore}`;
-    scoreEl.style.display = 'block';
-    timerEl.textContent = `Time: ${gameTimer}`;
-    timerEl.style.display = 'block';
+        } else if (gameState === 'MIDGAME') {
+            statusEl.textContent = `State: ${gameState}`;
+            statusEl.style.display = 'block';
+            scoreEl.textContent = `Score: ${playerScore.toLocaleString('en-US')}`;
+            scoreEl.style.display = 'block';
+            timerEl.textContent = `Time: ${gameTimer}`;
+            timerEl.style.display = 'block';
     startBtn.style.display = 'none';
     diffSelect.style.display = 'none';
-  } else if (gameState === 'POSTGAME') {
-    statusEl.textContent = `Game ended! Final Score: ${playerScore}`;
-    statusEl.style.display = 'block';
+          } else if (gameState === 'POSTGAME') {
+            statusEl.textContent = `Game ended! Final Score: ${playerScore.toLocaleString('en-US')}`;
+            statusEl.style.display = 'block';
     scoreEl.style.display = 'none'; // Hide score during postgame
     timerEl.style.display = 'none'; // Hide timer during postgame
     startBtn.style.display = 'block'; // Show start button to replay

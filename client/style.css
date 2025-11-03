@@ -19,6 +19,22 @@ body {
   font-weight: bold;
 }
 
+#motd-container {
+  font-size: 1em;
+  margin-top: 10px;
+  padding: 8px;
+  background-color: #003300;
+  border: 1px solid #00ff00;
+}
+
+#motd-label {
+  font-weight: bold;
+}
+
+#motd-value {
+  color: #00ffff;
+}
+
 .main-container {
   display: flex;
   justify-content: space-between;

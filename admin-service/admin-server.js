@@ -87,12 +87,34 @@ app.post('/api/game-config', { preHandler: [app.adminAuth] }, async (request, re
 // 5. Send Message of the Day (proxies to the API service with secret key)
 app.post('/api/motd', { preHandler: [app.adminAuth] }, async (request, reply) => {
   try {
-    await axios.post(`${API_SERVICE_URL}/api/admin/motd`, request.body, {
-      headers: { 'X-Admin-API-Key': ADMIN_API_KEY }
+    app.log.info('MOTD request received:', { body: request.body });
+    
+    const response = await axios.post(`${API_SERVICE_URL}/api/admin/broadcast-motd`, request.body, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
     });
+    
+    app.log.info('MOTD successfully forwarded to API service');
     reply.send({ success: true });
   } catch (error) {
-    reply.status(500).send({ error: 'Failed to send MOTD' });
+    const errorDetails = {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: `${API_SERVICE_URL}/api/admin/broadcast-motd`,
+      requestBody: request.body
+    };
+    
+    app.log.error('MOTD Error:', errorDetails);
+    
+    reply.status(500).send({ 
+      error: 'Failed to send MOTD',
+      details: error.response?.data || error.message 
+    });
   }
 });
 

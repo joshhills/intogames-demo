@@ -16,6 +16,9 @@
     <div id="global-health-container">
       Global Firewall Integrity: <span id="global-health-value">Loading...</span>
     </div>
+    <div id="motd-container" style="display: none;">
+      <span id="motd-label">Message of the Day:</span> <span id="motd-value"></span>
+    </div>
   </div>
 
   <div class="main-container">
@@ -32,6 +35,13 @@
       <ol id="leaderboard-list">
         <li>Loading...</li>
       </ol>
+      <hr>
+      <div id="player-score-section" style="margin-top: 15px;">
+        <h3>Your Score</h3>
+        <div id="player-total-score" style="font-size: 1.2em; font-weight: bold;">Loading...</div>
+        <p style="font-size: 0.9em; color: #888;">Your cumulative total score for this period</p>
+        <p id="leaderboard-reset-countdown" style="font-size: 0.85em; color: #666; margin-top: 8px;"></p>
+      </div>
     </div>
 
     <div id="canvas-container">

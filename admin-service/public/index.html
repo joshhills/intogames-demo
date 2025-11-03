@@ -19,45 +19,115 @@
         <h1>Firewall Admin Panel</h1>
         
         <section>
+            <h2>Global Firewall Health</h2>
+            <p>Manage the global firewall integrity (server-authoritative).</p>
+            <label>Current Health:</label>
+            <input type="number" id="health-input" min="0" step="1">
+            <label>Max Health:</label>
+            <input type="number" id="max-health-input" min="1" step="1">
+            <button id="update-health-btn" disabled>Update Health</button>
+            <p id="health-status"></p>
+        </section>
+
+        <section>
             <h2>Message of the Day</h2>
+            <p>Update the persistent message displayed to all players.</p>
             <input type="text" id="motd-input" placeholder="Enter message...">
-            <button id="send-motd-btn">Send MOTD to all players</button>
+            <button id="send-motd-btn" disabled>Update MOTD</button>
             <p id="motd-status"></p>
+        </section>
+
+        <section>
+            <h2>Leaderboard Reset Interval</h2>
+            <p>Configure how often the leaderboard automatically resets (global setting, not per-difficulty).</p>
+            <label>Reset Interval (minutes):</label>
+            <input type="number" id="flush-interval-input" value="60" min="1" step="1">
+            <button id="update-flush-interval-btn" disabled>Update Interval</button>
+            <p id="flush-interval-status"></p>
+            <div id="leaderboard-reset-info" style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                <p><strong>Last Reset:</strong> <span id="last-reset-time">Loading...</span></p>
+                <p><strong>Next Reset:</strong> <span id="next-reset-time">Loading...</span></p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Leaderboard Management</h2>
+            <p>View and manage the top defenders leaderboard.</p>
+            <button id="refresh-leaderboard-btn">Refresh Leaderboard</button>
+            <button id="flush-leaderboard-btn" style="background-color: #dc3545; margin-left: 10px;">Flush Leaderboard</button>
+            <div id="leaderboard-container" style="margin-top: 15px;">
+                <p id="leaderboard-loading">Loading...</p>
+                <ol id="admin-leaderboard-list" style="display: none; max-height: 400px; overflow-y: auto; padding-left: 20px;">
+                </ol>
+                <p id="leaderboard-empty" style="display: none; color: #666;">Leaderboard is empty</p>
+            </div>
+            <p id="leaderboard-status"></p>
         </section>
 
         <section>
             <h2>Game Configuration</h2>
             <p>Configure difficulty settings. These will be fetched by clients on game start.</p>
+            <div id="unsaved-indicator" style="display: none; background-color: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                <strong>⚠️ You have unsaved changes</strong>
+            </div>
             <form id="config-form">
-                <!-- Easy -->
-                <h3>Easy</h3>
-                <label>Hole Count:</label>
-                <input type="number" id="easy-holeCount" value="1">
-                <label>Bug Spawn Rate (ms):</label>
-                <input type="number" id="easy-spawnRate" value="1000">
-                <label>Bug Max Speed:</label>
-                <input type="number" id="easy-maxSpeed" value="3">
-                
-                <!-- Medium -->
-                <h3>Medium</h3>
-                <label>Hole Count:</label>
-                <input type="number" id="medium-holeCount" value="1">
-                <label>Bug Spawn Rate (ms):</label>
-                <input type="number" id="medium-spawnRate" value="750">
-                <label>Bug Max Speed:</label>
-                <input type="number" id="medium-maxSpeed" value="4">
+                <!-- Tab Navigation -->
+                <div class="tab-buttons">
+                    <button type="button" class="tab-btn active" data-tab="easy">Easy</button>
+                    <button type="button" class="tab-btn" data-tab="medium">Medium</button>
+                    <button type="button" class="tab-btn" data-tab="hard">Hard</button>
+                </div>
 
-                <!-- Hard -->
-                <h3>Hard</h3>
-                <label>Hole Count:</label>
-                <input type="number" id="hard-holeCount" value="2">
-                <label>Bug Spawn Rate (ms):</label>
-                <input type="number" id="hard-spawnRate" value="500">
-                <label>Bug Max Speed:</label>
-                <input type="number" id="hard-maxSpeed" value="5">
+                <!-- Easy Tab -->
+                <div id="tab-easy" class="tab-content active">
+                    <label>Hole Count:</label>
+                    <input type="number" id="easy-holeCount" value="1" min="0" class="config-input">
+                    <label>Bug Spawn Rate (per second):</label>
+                    <input type="number" id="easy-spawnRate" value="1" step="any" min="0.1" class="config-input">
+                    <label>Bug Max Speed:</label>
+                    <input type="number" id="easy-maxSpeed" value="1.5" step="any" min="0.1" class="config-input">
+                    <label>Penalty (score lost per bug hitting hole):</label>
+                    <input type="number" id="easy-penalty" value="5" min="0" step="1" class="config-input">
+                    <label>Defense Bonus (score gained per bug pushed off):</label>
+                    <input type="number" id="easy-defenseBonus" value="5" min="0" step="1" class="config-input">
+                    <label>Game Time (seconds):</label>
+                    <input type="number" id="easy-gameTimeSeconds" value="60" min="1" step="1" class="config-input">
+                </div>
+
+                <!-- Medium Tab -->
+                <div id="tab-medium" class="tab-content">
+                    <label>Hole Count:</label>
+                    <input type="number" id="medium-holeCount" value="1" min="0" class="config-input">
+                    <label>Bug Spawn Rate (per second):</label>
+                    <input type="number" id="medium-spawnRate" value="1.33" step="any" min="0.1" class="config-input">
+                    <label>Bug Max Speed:</label>
+                    <input type="number" id="medium-maxSpeed" value="2" step="any" min="0.1" class="config-input">
+                    <label>Penalty (score lost per bug hitting hole):</label>
+                    <input type="number" id="medium-penalty" value="10" min="0" step="1" class="config-input">
+                    <label>Defense Bonus (score gained per bug pushed off):</label>
+                    <input type="number" id="medium-defenseBonus" value="5" min="0" step="1" class="config-input">
+                    <label>Game Time (seconds):</label>
+                    <input type="number" id="medium-gameTimeSeconds" value="60" min="1" step="1" class="config-input">
+                </div>
+
+                <!-- Hard Tab -->
+                <div id="tab-hard" class="tab-content">
+                    <label>Hole Count:</label>
+                    <input type="number" id="hard-holeCount" value="2" min="0" class="config-input">
+                    <label>Bug Spawn Rate (per second):</label>
+                    <input type="number" id="hard-spawnRate" value="2" step="any" min="0.1" class="config-input">
+                    <label>Bug Max Speed:</label>
+                    <input type="number" id="hard-maxSpeed" value="2.5" step="any" min="0.1" class="config-input">
+                    <label>Penalty (score lost per bug hitting hole):</label>
+                    <input type="number" id="hard-penalty" value="15" min="0" step="1" class="config-input">
+                    <label>Defense Bonus (score gained per bug pushed off):</label>
+                    <input type="number" id="hard-defenseBonus" value="5" min="0" step="1" class="config-input">
+                    <label>Game Time (seconds):</label>
+                    <input type="number" id="hard-gameTimeSeconds" value="60" min="1" step="1" class="config-input">
+                </div>
                 
                 <br>
-                <button type="submit">Save Game Config</button>
+                <button type="submit" id="save-config-btn" disabled>Save Game Config</button>
                 <p id="config-status"></p>
             </form>
         </section>
