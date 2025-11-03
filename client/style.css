@@ -1,0 +1,80 @@
+/* A lean, "hacker" theme for the demo */
+body {
+  background-color: #0d0d0d;
+  color: #00ff00;
+  font-family: 'Courier New', Courier, monospace;
+  margin: 0;
+  padding: 1em;
+  overflow: hidden;
+}
+
+.header-ui {
+  text-align: center;
+  border-bottom: 1px solid #00ff00;
+  padding-bottom: 10px;
+}
+
+#global-health-container {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.main-container {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+#game-ui-left, #game-ui-right {
+  width: 20%;
+  padding: 10px;
+  border: 1px solid #003300;
+  background-color: #051005;
+  height: 600px;
+}
+
+#canvas-container {
+  width: 55%;
+  border: 1px solid #00ff00;
+}
+
+canvas {
+  display: block; /* Removes default margin */
+}
+
+input, button, select {
+  background-color: #111;
+  color: #00ff00;
+  border: 1px solid #00ff00;
+  font-family: 'Courier New', Courier, monospace;
+  margin-top: 5px;
+  padding: 5px;
+  width: 100%;
+  box-sizing: border-box; /* Makes padding not affect width */
+}
+
+button:hover {
+  background-color: #00ff00;
+  color: #000;
+  cursor: pointer;
+}
+
+#leaderboard-list li {
+  margin-bottom: 5px;
+}
+
+#notification-toast {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #00ff00;
+  color: #000;
+  font-weight: bold;
+  display: none; /* Hidden by default */
+  box-sizing: border-box;
+  width: 100%;
+}
+
+#difficulty-selector {
+  margin: 10px 0;
+}
+

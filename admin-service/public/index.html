@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firewall Admin Panel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="login-container">
+        <h1>Admin Login</h1>
+        <input type="text" id="username" placeholder="Username (admin)">
+        <input type="password" id="password" placeholder="Password (password123)">
+        <button id="login-btn">Login</button>
+        <p id="login-error"></p>
+    </div>
+
+    <div id="admin-panel" style="display: none;">
+        <h1>Firewall Admin Panel</h1>
+        
+        <section>
+            <h2>Message of the Day</h2>
+            <input type="text" id="motd-input" placeholder="Enter message...">
+            <button id="send-motd-btn">Send MOTD to all players</button>
+            <p id="motd-status"></p>
+        </section>
+
+        <section>
+            <h2>Game Configuration</h2>
+            <p>Configure difficulty settings. These will be fetched by clients on game start.</p>
+            <form id="config-form">
+                <!-- Easy -->
+                <h3>Easy</h3>
+                <label>Hole Count:</label>
+                <input type="number" id="easy-holeCount" value="1">
+                <label>Bug Spawn Rate (ms):</label>
+                <input type="number" id="easy-spawnRate" value="1000">
+                <label>Bug Max Speed:</label>
+                <input type="number" id="easy-maxSpeed" value="3">
+                
+                <!-- Medium -->
+                <h3>Medium</h3>
+                <label>Hole Count:</label>
+                <input type="number" id="medium-holeCount" value="1">
+                <label>Bug Spawn Rate (ms):</label>
+                <input type="number" id="medium-spawnRate" value="750">
+                <label>Bug Max Speed:</label>
+                <input type="number" id="medium-maxSpeed" value="4">
+
+                <!-- Hard -->
+                <h3>Hard</h3>
+                <label>Hole Count:</label>
+                <input type="number" id="hard-holeCount" value="2">
+                <label>Bug Spawn Rate (ms):</label>
+                <input type="number" id="hard-spawnRate" value="500">
+                <label>Bug Max Speed:</label>
+                <input type="number" id="hard-maxSpeed" value="5">
+                
+                <br>
+                <button type="submit">Save Game Config</button>
+                <p id="config-status"></p>
+            </form>
+        </section>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

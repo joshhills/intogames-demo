@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firewall Defense</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Load p5.js and p5.play from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.4/lib/p5.js"></script>
+  <script src="https://p5play.org/v3/planck.min.js"></script>
+  <script src="https://p5play.org/v3/p5play.min.js"></script>
+</head>
+<body>
+  <div class="header-ui">
+    <h1>Firewall Defense</h1>
+    <div id="global-health-container">
+      Global Firewall Integrity: <span id="global-health-value">Loading...</span>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div id="game-ui-left">
+      <h2>Profile</h2>
+      <div id="profile-info">
+        <div>ID: <span id="player-id">...</span></div>
+        <div>Tagline: <input type="text" id="tagline-input" /></div>
+        <div>Color: <input type="color" id="color-input" /></div>
+        <button id="profile-save-btn">Save Profile</button>
+      </div>
+      <hr>
+      <h2>Top Defenders</h2>
+      <ol id="leaderboard-list">
+        <li>Loading...</li>
+      </ol>
+    </div>
+
+    <div id="canvas-container">
+      <!-- p5.js canvas will be inserted here by sketch.js -->
+    </div>
+
+    <div id="game-ui-right">
+      <h2>Game Status</h2>
+      <div id="game-status">Waiting to start...</div>
+      
+      <div id="difficulty-selector">
+        <label for="difficulty">Difficulty:</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+      
+      <div id="local-score">Score: 0</div>
+      <div id="game-timer">Time: 60</div>
+      <button id="start-game-btn">Start Game</button>
+      
+      <hr>
+      <h2>Notifications</h2>
+      <div id="notification-toast"></div>
+    </div>
+  </div>
+
+  <!-- Load our game logic -->
+  <script src="api.js"></script>
+  <script src="sketch.js"></script>
+</body>
+</html>
+

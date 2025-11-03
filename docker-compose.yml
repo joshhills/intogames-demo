@@ -1,0 +1,73 @@
+# This file orchestrates all 6 services for the demo.
+# Run `docker-compose up --build` from the root directory.
+
+version: '3.8'
+
+services:
+  # 1. The Client (p5.js game served by Nginx)
+  client:
+    image: nginx:alpine
+    volumes:
+      - ./client:/usr/share/nginx/html:ro # Mount client code
+    ports:
+      - "8080:80" # Access the game at http://localhost:8080
+    depends_on:
+      - api-service
+      - push-service
+
+  # 2. The Backend REST API (Node.js + Fastify)
+  api-service:
+    build:
+      context: .
+      dockerfile: ./api-service/Dockerfile
+    ports:
+      - "3000:3000" # REST API on http://localhost:3000
+    environment:
+      # These are the service names Docker Compose uses for DNS
+      - MONGO_URI=mongodb://mongo:27017/firewall_db
+      - REDIS_URI=redis://redis:6379
+      - PUSH_SERVICE_URL=http://push-service:3001
+      - JWT_SECRET=THIS_IS_A_VERY_SECRET_KEY_FOR_THE_WORKSHOP
+      - ADMIN_API_KEY=ADMIN_SUPER_SECRET_KEY # Hardcoded key for admin tool
+    depends_on:
+      - mongo
+      - redis
+
+  # 3. The Real-time Push Service (Node.js + WebSocket)
+  push-service:
+    build:
+      context: .
+      dockerfile: ./push-service/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - REDIS_URI=redis://redis:6379
+    
+  # 4. The Persistent Database (for profiles, scores)
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017" # For optional inspection
+    volumes:
+      - mongo-data:/data/db
+
+  # 5. The In-Memory Cache (for global health)
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379" # For optional inspection
+    volumes:
+      - redis-data:/data
+  
+  # 6. The Admin Tool (Node.js + Fastify)
+  admin-service:
+    build: ./admin-service
+    ports:
+      - "4000:4000" # Access admin tool at http://localhost:4000
+    depends_on:
+      - api-service # Depends on the API to proxy requests
+
+volumes:
+  mongo-data:
+  redis-data:
+

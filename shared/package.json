@@ -1,0 +1,10 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared utilities for Into Games workshop services",
+  "dependencies": {
+    "ioredis": "^5.4.1"
+  }
+}
+
