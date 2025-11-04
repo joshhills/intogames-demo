@@ -8,11 +8,11 @@ import axios from 'axios';
 
 // --- CONFIGURATION ---
 const app = Fastify({ logger: true });
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 // This is the "internal" Docker DNS name for the API service
 // Can be overridden via environment variable for different deployments
-const API_SERVICE_URL = process.env.API_SERVICE_URL || 'http://api-service:3000';
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:8080'; 
+// For Railway, set this to the public domain of the API service (e.g., https://api-service-production-xxx.up.railway.app)
+const API_SERVICE_URL = process.env.API_SERVICE_URL || 'http://api-service:3000'; 
 // This is the hardcoded secret for our admin tool to talk to the API
 const ADMIN_API_KEY = 'ADMIN_SUPER_SECRET_KEY'; 
 // This is a hardcoded, mock admin login
@@ -23,7 +23,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // --- PLUGINS ---
-app.register(fastifyCors, { origin: CLIENT_URL, credentials: true }); // Allow client
+// CORS not needed since admin panel is served from same origin, but allow all for flexibility
+app.register(fastifyCors, { origin: true, credentials: true });
 app.register(fastifyCookie);
 app.register(fastifyStatic, {
   root: path.join(__dirname, 'public'),
