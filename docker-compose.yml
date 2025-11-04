@@ -6,11 +6,20 @@ version: '3.8'
 services:
   # 1. The Client (p5.js game served by Nginx)
   client:
-    image: nginx:alpine
-    volumes:
-      - ./client:/usr/share/nginx/html:ro # Mount client code
+    build:
+      context: ./client
+      dockerfile: Dockerfile
     ports:
       - "8080:80" # Access the game at http://localhost:8080
+    environment:
+      # For local development, these default to localhost
+      # For production (Railway), set CLIENT_API_URL and CLIENT_WS_URL
+      - CLIENT_API_URL=${CLIENT_API_URL:-http://localhost:3000/api}
+      - CLIENT_WS_URL=${CLIENT_WS_URL:-ws://localhost:3001/ws}
+      # Railway-specific: these will be set automatically by Railway
+      - RAILWAY_PUBLIC_DOMAIN=${RAILWAY_PUBLIC_DOMAIN:-}
+      - RAILWAY_API_DOMAIN=${RAILWAY_API_DOMAIN:-}
+      - RAILWAY_PUSH_DOMAIN=${RAILWAY_PUSH_DOMAIN:-}
     depends_on:
       - api-service
       - push-service

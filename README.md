@@ -283,6 +283,24 @@ This will enable the logs dashboard to work properly.
 
 ## Deployment
 
+### Railway (Recommended for Free Hosting)
+
+Railway now supports Docker Compose! This is the easiest way to deploy the demo for a workshop.
+
+**Quick Start:**
+1. Push your repository to GitHub
+2. Sign up at [railway.app](https://railway.app) (free tier available)
+3. Click "New Project" → "Deploy from GitHub repo"
+4. Select your repository
+5. Railway will automatically detect and deploy your `docker-compose.yml`
+6. Configure environment variables (see [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md) for details)
+
+**Full Guide:** See [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md) for detailed Railway deployment instructions, including:
+- How to configure service URLs
+- Setting up Redis
+- Troubleshooting common issues
+- Cost considerations
+
 ### Environment Variables
 
 You can customize URLs and connections for different deployments:

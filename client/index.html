@@ -103,11 +103,10 @@
   </div>
 
   <!-- Load our game logic -->
-  <!-- Optionally inject API URLs via environment variables before loading api.js -->
+  <!-- API URLs injected by deployment script -->
   <script>
-    // These can be set via environment variable injection during deployment
-    // Example: window.API_URL = 'https://api.example.com/api';
-    // Example: window.WS_URL = 'wss://push.example.com/ws';
+    // These will be injected by inject-config.sh during container startup
+    // For local development, defaults to localhost (see api.js)
   </script>
   <script src="api.js"></script>
   <script src="sketch.js"></script>
