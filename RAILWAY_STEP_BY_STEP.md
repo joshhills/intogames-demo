@@ -38,7 +38,7 @@ Redis needs to be available before other services start.
 1. Click **"+ New"** → **"GitHub Repo"**
 2. Select your repository
 3. In **"Settings"** → **"Source"**:
-   - **Root Directory**: `./` (root of repo)
+   - **Root Directory**: `./` (root of repo, since Dockerfile references parent directories)
 4. In **"Settings"** → **"Build"**:
    - **Builder**: **"Docker"** (important! Not Railpack)
    - **Dockerfile Path**: `api-service/Dockerfile`
@@ -56,7 +56,7 @@ Redis needs to be available before other services start.
 1. Click **"+ New"** → **"GitHub Repo"**
 2. Select your repository
 3. In **"Settings"** → **"Source"**:
-   - **Root Directory**: `./`
+   - **Root Directory**: `./` (root of repo)
 4. In **"Settings"** → **"Build"**:
    - **Builder**: **"Docker"**
    - **Dockerfile Path**: `push-service/Dockerfile`
@@ -86,10 +86,10 @@ Redis needs to be available before other services start.
 1. Click **"+ New"** → **"GitHub Repo"**
 2. Select your repository
 3. In **"Settings"** → **"Source"**:
-   - **Root Directory**: `./`
+   - **Root Directory**: `admin-service/` (important! The Dockerfile copies from current directory)
 4. In **"Settings"** → **"Build"**:
    - **Builder**: **"Docker"**
-   - **Dockerfile Path**: `admin-service/Dockerfile`
+   - **Dockerfile Path**: `Dockerfile` (relative to admin-service/ directory)
 5. In **"Variables"**, add:
    ```
    API_SERVICE_URL=https://[api-service-domain]
@@ -160,8 +160,11 @@ Railway services don't use Docker Compose service names. Instead:
 
 For each service, make sure:
 - ✅ **Builder** is set to **"Docker"** (not Railpack)
-- ✅ **Dockerfile Path** is correct (e.g., `client/Dockerfile`, `api-service/Dockerfile`)
-- ✅ **Root Directory** is `./` (root of repo) unless Dockerfile is in a subdirectory
+- ✅ **Root Directory** matches the Dockerfile's build context:
+  - `client/` → Dockerfile Path: `Dockerfile` (client service)
+  - `admin-service/` → Dockerfile Path: `Dockerfile` (admin service)
+  - `./` (root) → Dockerfile Path: `api-service/Dockerfile` (api service)
+  - `./` (root) → Dockerfile Path: `push-service/Dockerfile` (push service)
 - ✅ Environment variables use Railway service references (`${{ServiceName.VARIABLE}}`) or public domains
 
 ## Next Steps

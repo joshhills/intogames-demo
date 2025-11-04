@@ -24,12 +24,18 @@ echo "Configuring client with:"
 echo "  API_URL: $API_URL"
 echo "  WS_URL: $WS_URL"
 
-# Replace the placeholder comment and script content with actual config
-# Using a simpler approach: replace the lines between the comment and the closing script tag
-sed -i "/<!-- API URLs injected by deployment script -->/,/\/\/ These will be injected/c\\
-    <!-- API URLs injected by deployment script -->\\
-    window.API_URL = '${API_URL}';\\
-    window.WS_URL = '${WS_URL}';
+# Escape special characters in URLs for sed
+API_URL_ESCAPED=$(echo "$API_URL" | sed 's/[[\.*^$()+?{|]/\\&/g' | sed "s/'/\\\'/g")
+WS_URL_ESCAPED=$(echo "$WS_URL" | sed 's/[[\.*^$()+?{|]/\\&/g' | sed "s/'/\\\'/g")
+
+# Replace the entire script block (from comment through closing script tag) with our config
+# This ensures the JavaScript is properly inside script tags
+sed -i "/<!-- API URLs injected by deployment script -->/,/<\/script>/c\\
+<!-- API URLs injected by deployment script -->\\
+<script>\\
+window.API_URL = '${API_URL_ESCAPED}';\\
+window.WS_URL = '${WS_URL_ESCAPED}';\\
+</script>
 " /usr/share/nginx/html/index.html
 
 echo "Configuration injected successfully"
