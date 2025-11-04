@@ -101,9 +101,14 @@ app.get('/api/motd', { preHandler: [app.adminAuth] }, async (request, reply) => 
 // 3c. Get current health (proxies to the API service)
 app.get('/api/health', { preHandler: [app.adminAuth] }, async (request, reply) => {
   try {
-    const response = await axios.get(`${API_SERVICE_URL}/api/admin/health`);
+    const response = await axios.get(`${API_SERVICE_URL}/api/admin/health`, {
+      headers: {
+        'X-Admin-API-Key': ADMIN_API_KEY
+      }
+    });
     reply.send(response.data);
   } catch (error) {
+    console.error('Error fetching health:', error.message);
     reply.status(500).send({ error: 'Failed to fetch health from API service' });
   }
 });
@@ -207,10 +212,110 @@ app.delete('/api/leaderboard', { preHandler: [app.adminAuth] }, async (request, 
     
     app.log.error('Leaderboard flush error:', errorDetails);
     
-    reply.status(500).send({ 
+    reply.status(500).send({
       error: 'Failed to flush leaderboard',
-      details: error.response?.data || error.message 
+      details: error.response?.data || error.message
     });
+  }
+});
+
+// 4. Get Players List (proxies to the API service)
+app.get('/api/players', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const page = request.query.page || '1';
+    const limit = request.query.limit || '20';
+    const search = request.query.search || '';
+    const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
+    const response = await axios.get(`${API_SERVICE_URL}/api/admin/players?page=${page}&limit=${limit}${searchParam}`, {
+      headers: { 'X-Admin-API-Key': ADMIN_API_KEY }
+    });
+    reply.send(response.data);
+  } catch (error) {
+    app.log.error('Error fetching players:', error);
+    reply.status(500).send({ error: 'Failed to fetch players from API service' });
+  }
+});
+
+// 5a. Delete All Players - MUST come before /api/players/:uuid to avoid route collision
+app.delete('/api/players', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const response = await axios.delete(`${API_SERVICE_URL}/api/admin/players`, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY
+      }
+    });
+    reply.send(response.data);
+  } catch (error) {
+    app.log.error('Error deleting all players:', error.message || error);
+    if (error.response) {
+      app.log.error('API Service response:', error.response.status, error.response.data);
+    }
+    const status = error.response?.status || 500;
+    reply.status(status).send({ error: error.response?.data?.error || error.message || 'Failed to delete all players' });
+  }
+});
+
+// 5b. Delete Players (Bulk) - MUST come before /api/players/:uuid to avoid route collision
+app.post('/api/players/bulk-delete', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const response = await axios.post(`${API_SERVICE_URL}/api/admin/players/bulk-delete`, request.body, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    reply.send(response.data);
+  } catch (error) {
+    app.log.error('Error bulk deleting players:', error.message || error);
+    if (error.response) {
+      app.log.error('API Service response:', error.response.status, error.response.data);
+    } else if (error.request) {
+      app.log.error('No response received from API service:', error.request);
+    } else {
+      app.log.error('Error setting up request:', error.message);
+    }
+    const status = error.response?.status || 500;
+    reply.status(status).send({ error: error.response?.data?.error || error.message || 'Failed to bulk delete players' });
+  }
+});
+
+// 6. Update Player Profile (proxies to the API service)
+app.post('/api/players/:uuid', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const { uuid } = request.params;
+    const response = await axios.post(`${API_SERVICE_URL}/api/admin/players/${uuid}`, request.body, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    reply.send(response.data);
+  } catch (error) {
+    app.log.error('Error updating player:', error);
+    const status = error.response?.status || 500;
+    reply.status(status).send({ error: error.response?.data?.error || 'Failed to update player' });
+  }
+});
+
+// 7. Delete Player (Individual) - proxies to the API service
+app.delete('/api/players/:uuid', { preHandler: [app.adminAuth] }, async (request, reply) => {
+  try {
+    const { uuid } = request.params;
+    const response = await axios.delete(`${API_SERVICE_URL}/api/admin/players/${uuid}`, {
+      headers: { 
+        'X-Admin-API-Key': ADMIN_API_KEY
+      }
+    });
+    reply.code(200).send();
+  } catch (error) {
+    app.log.error('Error deleting player:', error.message || error);
+    if (error.response) {
+      app.log.error('API Service response:', error.response.status, error.response.data);
+    } else if (error.request) {
+      app.log.error('No response received from API service');
+    }
+    const status = error.response?.status || 500;
+    reply.status(status).send({ error: error.response?.data?.error || error.message || 'Failed to delete player' });
   }
 });
 

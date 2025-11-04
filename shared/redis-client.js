@@ -275,33 +275,7 @@ redisClient.on('error', (error) => {
   console.error('Redis Publisher Client error:', error);
 });
 
-// Initialize global health to 100 if not already set
-redisClient.get('global_health').then((health) => {
-  if (health === null) {
-    redisClient.set('global_health', '100');
-    console.log('Initialized global_health to 100.');
-  }
-}).catch((error) => {
-  console.error('Error initializing global health:', error);
-});
-
-redisClient.get('global_max_health').then((maxHealth) => {
-  if (maxHealth === null) {
-    redisClient.set('global_max_health', '1000');
-    console.log('Initialized global_max_health to 1000.');
-  }
-}).catch((error) => {
-  console.error('Error initializing global max health:', error);
-});
-
-redisClient.get('leaderboard_flush_interval_minutes').then((interval) => {
-  if (interval === null) {
-    redisClient.set('leaderboard_flush_interval_minutes', '60');
-    console.log('Initialized leaderboard_flush_interval_minutes to 60.');
-  }
-}).catch((error) => {
-  console.error('Error initializing leaderboard flush interval:', error);
-});
+// Health values and defaults are initialized in api-service/server.js on startup
 
 // Getter for subscriberClient that initializes on first access
 function getSubscriberClient() {
@@ -309,6 +283,121 @@ function getSubscriberClient() {
 }
 
 // --- EXPORTS ---
+// Game configuration storage
+async function getGameConfig() {
+  try {
+    const configJson = await redisClient.get('game_config');
+    if (configJson) {
+      return JSON.parse(configJson);
+    }
+    // Return default config if not found
+    return {
+      validation: {
+        corporationNameMinLength: 1,
+        corporationNameMaxLength: 64,
+        taglineMinLength: 1,
+        taglineMaxLength: 128
+      },
+      trapTimeout: 5000, // Trap timeout in milliseconds
+      trapDurability: 1, // Number of hits before trap disappears
+      trapShrinkPercent: 0, // Percent size reduction per hit (0-100)
+      easy: { 
+        holeCount: 1, 
+        spawnRate: 1000, 
+        maxSpeed: 1.5, 
+        penalty: 5, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 100,
+        adblockRegenerationRate: 50,
+        adblockTimeoutAfterUse: 2,
+        holesWander: false,
+        trapGrantingEnemyChance: 10
+      },
+      medium: { 
+        holeCount: 1, 
+        spawnRate: 750, 
+        maxSpeed: 2, 
+        penalty: 10, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 150,
+        adblockRegenerationRate: 40,
+        adblockTimeoutAfterUse: 2,
+        holesWander: false,
+        trapGrantingEnemyChance: 15
+      },
+      hard: { 
+        holeCount: 2, 
+        spawnRate: 500, 
+        maxSpeed: 2.5, 
+        penalty: 15, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 200,
+        adblockRegenerationRate: 30,
+        adblockTimeoutAfterUse: 3,
+        holesWander: true,
+        trapGrantingEnemyChance: 20
+      }
+    };
+  } catch (error) {
+    console.error('Error getting game config:', error);
+    // Return default on error
+    return {
+      easy: { 
+        holeCount: 1, 
+        spawnRate: 1000, 
+        maxSpeed: 1.5, 
+        penalty: 5, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 100,
+        adblockRegenerationRate: 50,
+        adblockTimeoutAfterUse: 2,
+        holesWander: false,
+        trapGrantingEnemyChance: 10
+      },
+      medium: { 
+        holeCount: 1, 
+        spawnRate: 750, 
+        maxSpeed: 2, 
+        penalty: 10, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 150,
+        adblockRegenerationRate: 40,
+        adblockTimeoutAfterUse: 2,
+        holesWander: false,
+        trapGrantingEnemyChance: 15
+      },
+      hard: { 
+        holeCount: 2, 
+        spawnRate: 500, 
+        maxSpeed: 2.5, 
+        penalty: 15, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 200,
+        adblockRegenerationRate: 30,
+        adblockTimeoutAfterUse: 3,
+        holesWander: true,
+        trapGrantingEnemyChance: 20
+      }
+    };
+  }
+}
+
+async function setGameConfig(config) {
+  try {
+    await redisClient.set('game_config', JSON.stringify(config));
+    return true;
+  } catch (error) {
+    console.error('Error setting game config:', error);
+    throw error;
+  }
+}
+
 export {
   db,
   redisClient,
@@ -323,6 +412,8 @@ export {
   setLeaderboardLastFlush,
   getLeaderboardFlushInterval,
   setLeaderboardFlushInterval,
+  getGameConfig,
+  setGameConfig,
   handleNewConnection
 };
 

@@ -24,7 +24,7 @@ tags:
   - name: Game
     description: Game configuration and match submission
   - name: Leaderboard
-    description: Top defenders leaderboard
+    description: Most Patriotic Corporations leaderboard
   - name: Firewall
     description: Global firewall health status
   - name: MOTD
@@ -78,11 +78,114 @@ paths:
                 example: "local_uuid is required"
 
   # === PLAYER ENDPOINTS ===
+  /api/admin/players:
+    get:
+      tags:
+        - Admin
+      summary: Get paginated list of players
+      description: Returns a paginated list of all players with their profile information
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Number of players per page
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  players:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminPlayerEntry'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      totalPages:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  
+  /api/admin/players/{uuid}:
+    post:
+      tags:
+        - Admin
+      summary: Update player profile (admin)
+      description: Update a player's corporation name and/or tagline (admin moderation)
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          description: Player UUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productName:
+                  type: string
+                  description: Corporation name (optional, validated against game config)
+                  nullable: true
+                tagline:
+                  type: string
+                  description: Tagline (optional, validated against game config)
+              required: []
+      responses:
+        '200':
+          description: Player updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlayerEntry'
+        '400':
+          description: Validation error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Corporation name must be at least 1 character(s)"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Player not found
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/player/setup:
     post:
       tags:
         - Player
-      summary: Update player tagline and color
+      summary: Update player profile (corporation name, tagline, and color)
       security:
         - bearerAuth: []
       requestBody:
@@ -95,9 +198,13 @@ paths:
                 - tagline
                 - color
               properties:
+                productName:
+                  type: string
+                  description: Corporation name (optional, validated against game config min/max length)
+                  example: "Acme Corp"
                 tagline:
                   type: string
-                  description: Player display name
+                  description: Player tagline/slogan (validated against game config min/max length)
                   example: "Defender-cbd5"
                 color:
                   type: string
@@ -468,9 +575,13 @@ components:
           type: string
           format: uuid
           description: Unique player identifier
+        productName:
+          type: string
+          description: Product/Company name (optional)
+          example: "Acme Corp"
         tagline:
           type: string
-          description: Player display name
+          description: Player tagline/slogan
           example: "Defender-cbd5"
         color:
           type: string
@@ -485,6 +596,26 @@ components:
     GameConfig:
       type: object
       properties:
+        validation:
+          type: object
+          description: Profile validation settings (min/max lengths for corporation name and tagline)
+          properties:
+            corporationNameMinLength:
+              type: integer
+              minimum: 1
+              description: Minimum length for corporation name
+            corporationNameMaxLength:
+              type: integer
+              minimum: 1
+              description: Maximum length for corporation name
+            taglineMinLength:
+              type: integer
+              minimum: 1
+              description: Minimum length for tagline
+            taglineMaxLength:
+              type: integer
+              minimum: 1
+              description: Maximum length for tagline
         easy:
           $ref: '#/components/schemas/DifficultyConfig'
         medium:
@@ -549,9 +680,13 @@ components:
     LeaderboardEntry:
       type: object
       properties:
+        productName:
+          type: string
+          description: Product/Company name (optional)
+          example: "Acme Corp"
         tagline:
           type: string
-          description: Player display name
+          description: Player tagline/slogan
           example: "Defender-cbd5"
         score:
           type: integer
@@ -565,10 +700,38 @@ components:
           type: string
           format: uuid
           description: Player UUID
+        productName:
+          type: string
+          description: Corporation name (optional)
+          example: "Acme Corp"
         tagline:
           type: string
-          description: Player display name
+          description: Player tagline/slogan
+        color:
+          type: string
+          description: Player color (hex format)
+          example: "#FFFFFF"
         score:
+          type: integer
+          description: Cumulative total score
+    AdminPlayerEntry:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Player UUID
+        productName:
+          type: string
+          description: Corporation name
+        tagline:
+          type: string
+          description: Player tagline/slogan
+        color:
+          type: string
+          description: Player color (hex format)
+          example: "#FFFFFF"
+        totalScore:
           type: integer
           description: Cumulative total score
 

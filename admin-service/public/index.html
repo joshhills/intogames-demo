@@ -19,14 +19,43 @@
         <h1>Firewall Admin Panel</h1>
         
         <section>
-            <h2>Global Firewall Health</h2>
-            <p>Manage the global firewall integrity (server-authoritative).</p>
+            <h2>Global Game Settings</h2>
+            <p>Configure global settings that apply across all difficulty levels.</p>
+            
+            <h3 style="margin-top: 30px; margin-bottom: 15px;">Global Firewall Health</h3>
+            <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">Manage the global firewall integrity (server-authoritative).</p>
             <label>Current Health:</label>
             <input type="number" id="health-input" min="0" step="1">
             <label>Max Health:</label>
             <input type="number" id="max-health-input" min="1" step="1">
             <button id="update-health-btn" disabled>Update Health</button>
             <p id="health-status"></p>
+            
+            <h3 style="margin-top: 30px; margin-bottom: 15px;">Trap Settings</h3>
+            <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">Configure global trap settings that apply to all difficulty levels.</p>
+            <label>Trap Timeout (milliseconds):</label>
+            <input type="number" id="trapTimeout" value="5000" min="1000" step="100" class="config-input">
+            <p style="font-size: 0.9em; color: #666; margin-top: 5px;">How long traps remain active before disappearing.</p>
+            
+            <label>Trap Durability (hits):</label>
+            <input type="number" id="trapDurability" value="1" min="1" step="1" class="config-input">
+            <p style="font-size: 0.9em; color: #666; margin-top: 5px;">Number of hits a trap can take before disappearing.</p>
+            
+            <label>Trap Shrink Percent (per hit):</label>
+            <input type="number" id="trapShrinkPercent" value="0" min="0" max="100" step="1" class="config-input">
+            <p style="font-size: 0.9em; color: #666; margin-top: 5px;">Percent size reduction per hit (0 = no shrinkage).</p>
+            
+            <h3 style="margin-top: 30px; margin-bottom: 15px;">Profile Validation Settings</h3>
+            <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">Configure minimum and maximum lengths for corporation names and taglines.</p>
+            <label>Corporation Name Min Length:</label>
+            <input type="number" id="validation-corporationNameMinLength" value="1" min="1" step="1" class="config-input">
+            <label>Corporation Name Max Length:</label>
+            <input type="number" id="validation-corporationNameMaxLength" value="64" min="1" step="1" class="config-input">
+            <label>Tagline Min Length:</label>
+            <input type="number" id="validation-taglineMinLength" value="1" min="1" step="1" class="config-input">
+            <label>Tagline Max Length:</label>
+            <input type="number" id="validation-taglineMaxLength" value="128" min="1" step="1" class="config-input">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">Note: These settings are part of game config and will be saved with difficulty settings.</p>
         </section>
 
         <section>
@@ -35,19 +64,6 @@
             <input type="text" id="motd-input" placeholder="Enter message...">
             <button id="send-motd-btn" disabled>Update MOTD</button>
             <p id="motd-status"></p>
-        </section>
-
-        <section>
-            <h2>Leaderboard Reset Interval</h2>
-            <p>Configure how often the leaderboard automatically resets (global setting, not per-difficulty).</p>
-            <label>Reset Interval (minutes):</label>
-            <input type="number" id="flush-interval-input" value="60" min="1" step="1">
-            <button id="update-flush-interval-btn" disabled>Update Interval</button>
-            <p id="flush-interval-status"></p>
-            <div id="leaderboard-reset-info" style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
-                <p><strong>Last Reset:</strong> <span id="last-reset-time">Loading...</span></p>
-                <p><strong>Next Reset:</strong> <span id="next-reset-time">Loading...</span></p>
-            </div>
         </section>
 
         <section>
@@ -62,6 +78,49 @@
                 <p id="leaderboard-empty" style="display: none; color: #666;">Leaderboard is empty</p>
             </div>
             <p id="leaderboard-status"></p>
+            
+            <h3 style="margin-top: 30px; margin-bottom: 15px;">Leaderboard Reset Interval</h3>
+            <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">Configure how often the leaderboard automatically resets (global setting, not per-difficulty).</p>
+            <label>Reset Interval (minutes):</label>
+            <input type="number" id="flush-interval-input" value="60" min="1" step="1">
+            <button id="update-flush-interval-btn" disabled>Update Interval</button>
+            <p id="flush-interval-status"></p>
+            <div id="leaderboard-reset-info" style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                <p><strong>Last Reset:</strong> <span id="last-reset-time">Loading...</span></p>
+                <p><strong>Next Reset:</strong> <span id="next-reset-time">Loading...</span></p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Players Management</h2>
+            <p>View, edit, and delete player profiles for moderation.</p>
+            <div id="players-container" style="margin-top: 15px;">
+                <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <button id="refresh-players-btn">Refresh Players</button>
+                    <input type="text" id="players-search-input" placeholder="Search by ID, name, or tagline..." style="flex: 1; min-width: 200px; padding: 5px;" />
+                    <button id="bulk-delete-players-btn" style="background-color: #dc3545; color: white;" disabled>Delete Selected</button>
+                    <button id="delete-all-players-btn" style="background-color: #8b0000; color: white;">Delete All Players</button>
+                    <span id="players-pagination" style="margin-left: 15px;"></span>
+                </div>
+                <div id="players-loading" style="display: none;">Loading players...</div>
+                <table id="players-table" style="width: 100%; border-collapse: collapse; display: none;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #ddd;">
+                            <th style="padding: 8px; text-align: left;"><input type="checkbox" id="select-all-players" /></th>
+                            <th style="padding: 8px; text-align: left;">ID</th>
+                            <th style="padding: 8px; text-align: left;">Corporation Name</th>
+                            <th style="padding: 8px; text-align: left;">Tagline</th>
+                            <th style="padding: 8px; text-align: left;">Color</th>
+                            <th style="padding: 8px; text-align: left;">Score</th>
+                            <th style="padding: 8px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="players-tbody">
+                    </tbody>
+                </table>
+                <p id="players-empty" style="display: none; color: #666;">No players found</p>
+            </div>
+            <p id="players-status"></p>
         </section>
 
         <section>
@@ -92,6 +151,17 @@
                     <input type="number" id="easy-defenseBonus" value="5" min="0" step="1" class="config-input">
                     <label>Game Time (seconds):</label>
                     <input type="number" id="easy-gameTimeSeconds" value="60" min="1" step="1" class="config-input">
+                    <label>Adblock Depletion Rate (% per second):</label>
+                    <input type="number" id="easy-adblockDepletionRate" value="20" min="0" step="any" class="config-input">
+                    <label>Adblock Regeneration Rate (% per second):</label>
+                    <input type="number" id="easy-adblockRegenerationRate" value="10" min="0" step="any" class="config-input">
+                    <label>Adblock Timeout After Use (seconds):</label>
+                    <input type="number" id="easy-adblockTimeoutAfterUse" value="5" min="0" step="any" class="config-input">
+                    <label>Holes Wander:</label>
+                    <input type="checkbox" id="easy-holesWander" class="config-input">
+                    <br>
+                    <label style="display: block; margin-top: 10px;">Trap Granting Enemy Chance (%):</label>
+                    <input type="number" id="easy-trapGrantingEnemyChance" value="10" min="0" max="100" step="1" class="config-input">
                 </div>
 
                 <!-- Medium Tab -->
@@ -108,6 +178,17 @@
                     <input type="number" id="medium-defenseBonus" value="5" min="0" step="1" class="config-input">
                     <label>Game Time (seconds):</label>
                     <input type="number" id="medium-gameTimeSeconds" value="60" min="1" step="1" class="config-input">
+                    <label>Adblock Depletion Rate (% per second):</label>
+                    <input type="number" id="medium-adblockDepletionRate" value="30" min="0" step="any" class="config-input">
+                    <label>Adblock Regeneration Rate (% per second):</label>
+                    <input type="number" id="medium-adblockRegenerationRate" value="8" min="0" step="any" class="config-input">
+                    <label>Adblock Timeout After Use (seconds):</label>
+                    <input type="number" id="medium-adblockTimeoutAfterUse" value="7" min="0" step="any" class="config-input">
+                    <label>Holes Wander:</label>
+                    <input type="checkbox" id="medium-holesWander" class="config-input">
+                    <br>
+                    <label style="display: block; margin-top: 10px;">Trap Granting Enemy Chance (%):</label>
+                    <input type="number" id="medium-trapGrantingEnemyChance" value="15" min="0" max="100" step="1" class="config-input">
                 </div>
 
                 <!-- Hard Tab -->
@@ -124,6 +205,17 @@
                     <input type="number" id="hard-defenseBonus" value="5" min="0" step="1" class="config-input">
                     <label>Game Time (seconds):</label>
                     <input type="number" id="hard-gameTimeSeconds" value="60" min="1" step="1" class="config-input">
+                    <label>Adblock Depletion Rate (% per second):</label>
+                    <input type="number" id="hard-adblockDepletionRate" value="40" min="0" step="any" class="config-input">
+                    <label>Adblock Regeneration Rate (% per second):</label>
+                    <input type="number" id="hard-adblockRegenerationRate" value="5" min="0" step="any" class="config-input">
+                    <label>Adblock Timeout After Use (seconds):</label>
+                    <input type="number" id="hard-adblockTimeoutAfterUse" value="10" min="0" step="any" class="config-input">
+                    <label>Holes Wander:</label>
+                    <input type="checkbox" id="hard-holesWander" class="config-input">
+                    <br>
+                    <label style="display: block; margin-top: 10px;">Trap Granting Enemy Chance (%):</label>
+                    <input type="number" id="hard-trapGrantingEnemyChance" value="20" min="0" max="100" step="1" class="config-input">
                 </div>
                 
                 <br>

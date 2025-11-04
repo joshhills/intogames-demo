@@ -27,10 +27,13 @@ This document outlines the functional requirements for the live operations infra
    - System must handle anonymous players who haven't completed profile setup
 
 2. **Profile Customization**
-   - Players can set a custom display name (tagline) for leaderboards and social features
+   - Players represent corporations in Cyber Earth, defending the global firewall from alien bugs
+   - Players must set a Corporation Name for their corporation
+   - Players can set a custom tagline (slogan/message) for leaderboards and social features
    - Players can customize their in-game visual representation via color selection
    - Profile changes must be saved immediately and reflect in all live systems (leaderboard, notifications)
    - Default values must be assigned if player doesn't customize (auto-generated tagline, default color)
+   - First-time players should be prompted to set up their Corporation Name and Tagline via a modal dialog
 
 3. **Authentication & Security**
    - Players must obtain a secure token (JWT) upon first launch or login
@@ -139,9 +142,12 @@ This document outlines the functional requirements for the live operations infra
    - Leaderboard must reflect cumulative totals, not best single-match performance
    - Scores can be negative (player can have negative total score)
 
-2. **Top Defenders Display**
-   - System must show the top 3 players by cumulative score at all times
-   - Display must include player tagline (display name) and score
+2. **Most Patriotic Corporations Display**
+   - System must show the top 3 corporations by cumulative score at all times
+   - Display must include corporation name, tagline, and score
+   - Corporation name should be bold and on its own line
+   - Tagline should be smaller, indented, and on a separate line below the corporation name
+   - Format: Corporation name (bold) on first line, tagline (smaller, indented) on second line, score on third line
    - Leaderboard must update in real-time when top 3 order changes
 
 3. **Automatic Periodic Reset**
@@ -327,7 +333,7 @@ This document outlines the functional requirements for the live operations infra
 **Requirements:**
 
 1. **Player Profile Persistence**
-   - Player profiles (UUID, tagline, color, totalScore) must be stored in persistent database
+   - Player profiles (UUID, productName, tagline, color, totalScore) must be stored in persistent database
    - Profile data must survive server restarts
    - Profile updates must be durable (written to disk, not just memory)
 

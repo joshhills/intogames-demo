@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadHealth();
                 loadLeaderboard();
                 loadFlushInterval();
+                loadPlayers();
                 startFlushInfoUpdates();
             } else {
                 loginError.textContent = 'Invalid username or password';
@@ -394,7 +395,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let flushInfoData = null; // Store last flush timestamp and interval
 
+    let isLoadingFlushInfo = false; // Prevent concurrent loads
+
     async function loadFlushInfo() {
+        // Prevent concurrent loads
+        if (isLoadingFlushInfo) {
+            return;
+        }
+        
+        isLoadingFlushInfo = true;
         try {
             const response = await fetch('/api/leaderboard-flush-info');
             if (!response.ok) throw new Error('Failed to load');
@@ -402,11 +411,25 @@ document.addEventListener('DOMContentLoaded', () => {
             updateFlushInfoDisplay();
         } catch (error) {
             console.error('Error loading flush info:', error);
+        } finally {
+            isLoadingFlushInfo = false;
         }
     }
 
+    let lastApiRefresh = 0; // Track when we last refreshed from API
+    const API_REFRESH_INTERVAL = 60000; // Refresh from API every 60 seconds
+
     function updateFlushInfoDisplay() {
-        if (!flushInfoData) return;
+        // Only update display if we have data - don't fetch on every call
+        if (!flushInfoData) {
+            // Only load if we haven't loaded recently (avoid spam on multiple calls)
+            const now = Date.now();
+            if (now - lastApiRefresh > 5000) { // Wait at least 5 seconds between loads
+                lastApiRefresh = now;
+                loadFlushInfo(); // Load once if missing
+            }
+            return;
+        }
         
         if (flushInfoData.lastFlush) {
             const lastFlushDate = new Date(flushInfoData.lastFlush);
@@ -419,8 +442,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (timeUntilFlush <= 0) {
                 nextResetTime.textContent = 'Resets soon...';
-                // Reload flush info if time has elapsed (might have been auto-flushed)
-                setTimeout(loadFlushInfo, 2000);
+                // Only reload from API every 10 seconds if countdown has expired (to catch auto-flushes)
+                if (now - lastApiRefresh > 10000) {
+                    lastApiRefresh = now;
+                    loadFlushInfo(); // Refresh from API
+                }
             } else {
                 const minutes = Math.floor(timeUntilFlush / 60000);
                 const seconds = Math.floor((timeUntilFlush % 60000) / 1000);
@@ -438,14 +464,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startFlushInfoUpdates() {
-        // Load flush info once
-        loadFlushInfo();
-        
-        // Then just update the display every second (no API calls)
+        // Clear any existing interval first to prevent duplicates
         if (flushInfoInterval) {
             clearInterval(flushInfoInterval);
+            flushInfoInterval = null;
         }
-        flushInfoInterval = setInterval(updateFlushInfoDisplay, 1000);
+        
+        // Load flush info once initially
+        lastApiRefresh = Date.now();
+        loadFlushInfo();
+        
+        // Update display every second (local calculation only - no API calls)
+        // Only refresh from API every 60 seconds to avoid spam
+        let apiRefreshCounter = 0;
+        flushInfoInterval = setInterval(() => {
+            updateFlushInfoDisplay(); // Local calculation only
+            apiRefreshCounter++;
+            if (apiRefreshCounter >= 60) {
+                // Refresh from API every 60 seconds
+                const now = Date.now();
+                if (now - lastApiRefresh >= API_REFRESH_INTERVAL) {
+                    lastApiRefresh = now;
+                    loadFlushInfo();
+                    apiRefreshCounter = 0;
+                }
+            }
+        }, 1000);
     }
 
     // Tab switching logic
@@ -465,7 +509,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to get current config from form
     function getCurrentConfig() {
-        const config = {};
+        const tab = document.querySelector('.tab-btn.active')?.dataset.tab || 'easy';
+        const config = {
+            validation: {
+                corporationNameMinLength: parseInt(document.getElementById('validation-corporationNameMinLength').value) || 1,
+                corporationNameMaxLength: parseInt(document.getElementById('validation-corporationNameMaxLength').value) || 64,
+                taglineMinLength: parseInt(document.getElementById('validation-taglineMinLength').value) || 1,
+                taglineMaxLength: parseInt(document.getElementById('validation-taglineMaxLength').value) || 128
+            }
+        };
+        const trapTimeoutInput = document.getElementById('trapTimeout');
+        config.trapTimeout = trapTimeoutInput ? parseInt(trapTimeoutInput.value) || 5000 : 5000;
+        
+        const trapDurabilityInput = document.getElementById('trapDurability');
+        config.trapDurability = trapDurabilityInput ? parseInt(trapDurabilityInput.value) || 1 : 1;
+        
+        const trapShrinkPercentInput = document.getElementById('trapShrinkPercent');
+        config.trapShrinkPercent = trapShrinkPercentInput ? parseInt(trapShrinkPercentInput.value) || 0 : 0;
+        
         ['easy', 'medium', 'hard'].forEach(difficulty => {
             config[difficulty] = {
                 holeCount: parseInt(document.getElementById(`${difficulty}-holeCount`).value),
@@ -474,6 +535,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 penalty: parseInt(document.getElementById(`${difficulty}-penalty`).value),
                 defenseBonus: parseInt(document.getElementById(`${difficulty}-defenseBonus`).value),
                 gameTimeSeconds: parseInt(document.getElementById(`${difficulty}-gameTimeSeconds`).value),
+                adblockDepletionRate: parseFloat(document.getElementById(`${difficulty}-adblockDepletionRate`).value) || 20,
+                adblockRegenerationRate: parseFloat(document.getElementById(`${difficulty}-adblockRegenerationRate`).value) || 10,
+                adblockTimeoutAfterUse: parseFloat(document.getElementById(`${difficulty}-adblockTimeoutAfterUse`).value) || 5,
+                holesWander: document.getElementById(`${difficulty}-holesWander`).checked,
+                trapGrantingEnemyChance: (() => {
+                    const input = document.getElementById(`${difficulty}-trapGrantingEnemyChance`);
+                    return input ? parseInt(input.value) || 0 : 0;
+                })()
             };
         });
         return config;
@@ -493,13 +562,46 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const current = getCurrentConfig();
         
+        // Check trapTimeout changes
+        const currentTrapTimeout = current.trapTimeout || 5000;
+        const originalTrapTimeout = originalConfig.trapTimeout || 5000;
+        if (currentTrapTimeout !== originalTrapTimeout) {
+            return true;
+        }
+        
+        // Check trapDurability changes
+        const currentTrapDurability = current.trapDurability || 1;
+        const originalTrapDurability = originalConfig.trapDurability || 1;
+        if (currentTrapDurability !== originalTrapDurability) {
+            return true;
+        }
+        
+        // Check trapShrinkPercent changes
+        const currentTrapShrinkPercent = current.trapShrinkPercent || 0;
+        const originalTrapShrinkPercent = originalConfig.trapShrinkPercent || 0;
+        if (currentTrapShrinkPercent !== originalTrapShrinkPercent) {
+            return true;
+        }
+        
+        // Check validation config changes
+        if (current.validation) {
+            const validationFields = ['corporationNameMinLength', 'corporationNameMaxLength', 'taglineMinLength', 'taglineMaxLength'];
+            for (const field of validationFields) {
+                const currentVal = current.validation[field] || 0;
+                const originalVal = originalConfig.validation?.[field] || 0;
+                if (currentVal !== originalVal) {
+                    return true;
+                }
+            }
+        }
+        
         for (const difficulty of ['easy', 'medium', 'hard']) {
             // Ensure original config has this difficulty
             if (!originalConfig[difficulty]) {
                 return true; // If difficulty is missing, consider it changed
             }
             
-            for (const field of ['holeCount', 'spawnRate', 'maxSpeed', 'penalty', 'defenseBonus', 'gameTimeSeconds']) {
+            for (const field of ['holeCount', 'spawnRate', 'maxSpeed', 'penalty', 'defenseBonus', 'gameTimeSeconds', 'adblockDepletionRate', 'adblockRegenerationRate', 'adblockTimeoutAfterUse', 'holesWander', 'trapGrantingEnemyChance']) {
                 // Special handling for spawnRate (we convert it)
                 if (field === 'spawnRate') {
                     const currentSpawnRate = Math.round(1000 / parseFloat(document.getElementById(`${difficulty}-spawnRate`).value));
@@ -507,11 +609,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (currentSpawnRate !== originalSpawnRate) {
                         return true;
                     }
-                } else if (field === 'maxSpeed') {
+                } else if (field === 'maxSpeed' || field === 'adblockDepletionRate' || field === 'adblockRegenerationRate' || field === 'adblockTimeoutAfterUse') {
                     // Use tolerance for floating point comparison
                     const currentValue = current[difficulty][field];
                     const originalValue = originalConfig[difficulty][field] || 0;
                     if (!valuesEqual(currentValue, originalValue)) {
+                        return true;
+                    }
+                } else if (field === 'holesWander') {
+                    // Boolean field
+                    const currentValue = current[difficulty][field] || false;
+                    const originalValue = originalConfig[difficulty][field] || false;
+                    if (currentValue !== originalValue) {
                         return true;
                     }
                 } else {
@@ -546,11 +655,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (originalConfig) {
             ['easy', 'medium', 'hard'].forEach(difficulty => {
                 // Handle regular fields
-                ['holeCount', 'maxSpeed', 'penalty', 'defenseBonus', 'gameTimeSeconds'].forEach(field => {
+                ['holeCount', 'maxSpeed', 'penalty', 'defenseBonus', 'gameTimeSeconds', 'adblockDepletionRate', 'adblockRegenerationRate', 'adblockTimeoutAfterUse', 'trapGrantingEnemyChance'].forEach(field => {
                     const input = document.getElementById(`${difficulty}-${field}`);
                     if (!input) return;
                     
-                    if (field === 'maxSpeed') {
+                    if (field === 'maxSpeed' || field === 'adblockDepletionRate' || field === 'adblockRegenerationRate' || field === 'adblockTimeoutAfterUse') {
                         // Use tolerance for floating point comparison
                         const current = parseFloat(input.value) || 0;
                         const original = originalConfig[difficulty][field] || 0;
@@ -579,7 +688,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     spawnRateInput.classList.remove('changed');
                 }
+                
+                // Handle holesWander checkbox
+                const holesWanderInput = document.getElementById(`${difficulty}-holesWander`);
+                if (holesWanderInput) {
+                    const current = holesWanderInput.checked || false;
+                    const original = originalConfig[difficulty].holesWander || false;
+                    if (current !== original) {
+                        holesWanderInput.classList.add('changed');
+                    } else {
+                        holesWanderInput.classList.remove('changed');
+                    }
+                }
+                
+                // Handle trapGrantingEnemyChance
+                const trapChanceInput = document.getElementById(`${difficulty}-trapGrantingEnemyChance`);
+                if (trapChanceInput) {
+                    const current = parseInt(trapChanceInput.value, 10) || 0;
+                    const original = originalConfig[difficulty].trapGrantingEnemyChance || 0;
+                    if (current !== original) {
+                        trapChanceInput.classList.add('changed');
+                    } else {
+                        trapChanceInput.classList.remove('changed');
+                    }
+                }
             });
+            
+            // Handle trapTimeout
+            const trapTimeoutInput = document.getElementById('trapTimeout');
+            if (trapTimeoutInput && originalConfig.trapTimeout !== undefined) {
+                const current = parseInt(trapTimeoutInput.value, 10) || 5000;
+                const original = originalConfig.trapTimeout || 5000;
+                if (current !== original) {
+                    trapTimeoutInput.classList.add('changed');
+                } else {
+                    trapTimeoutInput.classList.remove('changed');
+                }
+            }
+            
+            // Handle trapDurability
+            const trapDurabilityInput = document.getElementById('trapDurability');
+            if (trapDurabilityInput && originalConfig.trapDurability !== undefined) {
+                const current = parseInt(trapDurabilityInput.value, 10) || 1;
+                const original = originalConfig.trapDurability || 1;
+                if (current !== original) {
+                    trapDurabilityInput.classList.add('changed');
+                } else {
+                    trapDurabilityInput.classList.remove('changed');
+                }
+            }
+            
+            // Handle trapShrinkPercent
+            const trapShrinkPercentInput = document.getElementById('trapShrinkPercent');
+            if (trapShrinkPercentInput && originalConfig.trapShrinkPercent !== undefined) {
+                const current = parseInt(trapShrinkPercentInput.value, 10) || 0;
+                const original = originalConfig.trapShrinkPercent || 0;
+                if (current !== original) {
+                    trapShrinkPercentInput.classList.add('changed');
+                } else {
+                    trapShrinkPercentInput.classList.remove('changed');
+                }
+            }
         }
     }
 
@@ -602,17 +771,68 @@ document.addEventListener('DOMContentLoaded', () => {
                     { id: `${difficulty}-maxSpeed`, value: level.maxSpeed || 1.5 },
                     { id: `${difficulty}-penalty`, value: level.penalty || 5 },
                     { id: `${difficulty}-defenseBonus`, value: level.defenseBonus || 5 },
-                    { id: `${difficulty}-gameTimeSeconds`, value: level.gameTimeSeconds || 60 }
+                    { id: `${difficulty}-gameTimeSeconds`, value: level.gameTimeSeconds || 60 },
+                    { id: `${difficulty}-adblockDepletionRate`, value: level.adblockDepletionRate !== undefined ? level.adblockDepletionRate : 20 },
+                    { id: `${difficulty}-adblockRegenerationRate`, value: level.adblockRegenerationRate !== undefined ? level.adblockRegenerationRate : 10 },
+                    { id: `${difficulty}-adblockTimeoutAfterUse`, value: level.adblockTimeoutAfterUse !== undefined ? level.adblockTimeoutAfterUse : 5 },
+                    { id: `${difficulty}-holesWander`, value: level.holesWander !== undefined ? level.holesWander : false, isCheckbox: true },
+                    { id: `${difficulty}-trapGrantingEnemyChance`, value: level.trapGrantingEnemyChance !== undefined ? level.trapGrantingEnemyChance : 0 }
                 ];
                 
-                inputIds.forEach(({ id, value }) => {
+                inputIds.forEach(({ id, value, isCheckbox }) => {
                     const input = document.getElementById(id);
                     if (input) {
-                        input.value = value;
+                        if (isCheckbox) {
+                            input.checked = value;
+                        } else {
+                            input.value = value;
+                        }
                     }
                 });
             });
             
+            // Load trapTimeout
+            if (config.trapTimeout !== undefined) {
+                const trapTimeoutInput = document.getElementById('trapTimeout');
+                if (trapTimeoutInput) {
+                    trapTimeoutInput.value = config.trapTimeout;
+                }
+            }
+            
+            // Load trapDurability
+            if (config.trapDurability !== undefined) {
+                const trapDurabilityInput = document.getElementById('trapDurability');
+                if (trapDurabilityInput) {
+                    trapDurabilityInput.value = config.trapDurability;
+                }
+            }
+            
+            // Load trapShrinkPercent
+            if (config.trapShrinkPercent !== undefined) {
+                const trapShrinkPercentInput = document.getElementById('trapShrinkPercent');
+                if (trapShrinkPercentInput) {
+                    trapShrinkPercentInput.value = config.trapShrinkPercent;
+                }
+            }
+            
+            // Load validation settings
+            if (config.validation) {
+                document.getElementById('validation-corporationNameMinLength').value = config.validation.corporationNameMinLength || 1;
+                document.getElementById('validation-corporationNameMaxLength').value = config.validation.corporationNameMaxLength || 64;
+                document.getElementById('validation-taglineMinLength').value = config.validation.taglineMinLength || 1;
+                document.getElementById('validation-taglineMaxLength').value = config.validation.taglineMaxLength || 128;
+            } else {
+                // Set defaults if validation not in config
+                if (!originalConfig.validation) {
+                    originalConfig.validation = {
+                        corporationNameMinLength: 1,
+                        corporationNameMaxLength: 64,
+                        taglineMinLength: 1,
+                        taglineMaxLength: 128
+                    };
+                }
+            }
+
             // Ensure originalConfig has all required fields with defaults
             ['easy', 'medium', 'hard'].forEach(difficulty => {
                 if (!originalConfig[difficulty]) {
@@ -625,7 +845,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     maxSpeed: 1.5,
                     penalty: 5,
                     defenseBonus: 5,
-                    gameTimeSeconds: 60
+                    gameTimeSeconds: 60,
+                    adblockDepletionRate: 20,
+                    trapGrantingEnemyChance: 0,
+                    adblockRegenerationRate: 10,
+                    adblockTimeoutAfterUse: 5,
+                    holesWander: false
                 };
                 Object.keys(defaults).forEach(key => {
                     if (originalConfig[difficulty][key] === undefined) {
@@ -652,6 +877,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.config-input').forEach(input => {
         input.addEventListener('input', updateChangeIndicators);
         input.addEventListener('change', updateChangeIndicators);
+    });
+    
+    // Listen for validation input changes
+    ['validation-corporationNameMinLength', 'validation-corporationNameMaxLength', 'validation-taglineMinLength', 'validation-taglineMaxLength'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', () => {
+                updateChangeIndicators();
+                updateValidationChangeIndicators();
+            });
+            input.addEventListener('change', () => {
+                updateChangeIndicators();
+                updateValidationChangeIndicators();
+            });
+        }
     });
 
     configForm.addEventListener('submit', async (e) => {
@@ -705,4 +945,337 @@ document.addEventListener('DOMContentLoaded', () => {
             return e.returnValue;
         }
     });
+
+    // --- Players Management ---
+    const refreshPlayersBtn = document.getElementById('refresh-players-btn');
+    const playersSearchInput = document.getElementById('players-search-input');
+    const bulkDeletePlayersBtn = document.getElementById('bulk-delete-players-btn');
+    const deleteAllPlayersBtn = document.getElementById('delete-all-players-btn');
+    const selectAllPlayersCheckbox = document.getElementById('select-all-players');
+    const playersLoading = document.getElementById('players-loading');
+    const playersTable = document.getElementById('players-table');
+    const playersTbody = document.getElementById('players-tbody');
+    const playersEmpty = document.getElementById('players-empty');
+    const playersStatus = document.getElementById('players-status');
+    const playersPagination = document.getElementById('players-pagination');
+    
+    let currentPlayersPage = 1;
+    let currentPlayersSearch = '';
+    let playersPaginationInfo = null;
+    let selectedPlayerUuids = new Set();
+
+    if (refreshPlayersBtn) {
+        refreshPlayersBtn.addEventListener('click', () => {
+            loadPlayers(1);
+        });
+    }
+
+    if (playersSearchInput) {
+        let searchTimeout;
+        playersSearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentPlayersSearch = e.target.value;
+                loadPlayers(1);
+            }, 300); // Debounce search
+        });
+    }
+
+    if (selectAllPlayersCheckbox) {
+        selectAllPlayersCheckbox.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.player-select-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = e.target.checked;
+                const uuid = cb.dataset.uuid;
+                if (e.target.checked) {
+                    selectedPlayerUuids.add(uuid);
+                } else {
+                    selectedPlayerUuids.delete(uuid);
+                }
+            });
+            updateBulkDeleteButton();
+        });
+    }
+
+    if (bulkDeletePlayersBtn) {
+        bulkDeletePlayersBtn.addEventListener('click', async () => {
+            if (selectedPlayerUuids.size === 0) return;
+            
+            if (!confirm(`Are you sure you want to delete ${selectedPlayerUuids.size} player(s)? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                playersStatus.textContent = 'Deleting players...';
+                playersStatus.style.color = 'black';
+                
+                const response = await fetch('/api/players/bulk-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uuids: Array.from(selectedPlayerUuids) })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    playersStatus.textContent = `Deleted ${result.deleted} player(s)`;
+                    playersStatus.style.color = 'green';
+                    selectedPlayerUuids.clear();
+                    updateBulkDeleteButton();
+                    loadPlayers(currentPlayersPage);
+                } else {
+                    const error = await response.json();
+                    playersStatus.textContent = `Error: ${error.error || 'Failed to delete players'}`;
+                    playersStatus.style.color = 'red';
+                }
+            } catch (error) {
+                playersStatus.textContent = 'Failed to delete players';
+                playersStatus.style.color = 'red';
+            }
+        });
+    }
+
+    if (deleteAllPlayersBtn) {
+        deleteAllPlayersBtn.addEventListener('click', async () => {
+            // Double confirmation for deleting all players
+            if (!confirm('⚠️ WARNING: This will delete ALL players from the database. This action cannot be undone!')) {
+                return;
+            }
+            
+            if (!confirm('Are you ABSOLUTELY SURE? This will permanently delete every player account.')) {
+                return;
+            }
+
+            try {
+                playersStatus.textContent = 'Deleting all players...';
+                playersStatus.style.color = 'black';
+                
+                const response = await fetch('/api/players', {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    playersStatus.textContent = result.message || `Deleted ${result.deleted} player(s)`;
+                    playersStatus.style.color = 'green';
+                    selectedPlayerUuids.clear();
+                    updateBulkDeleteButton();
+                    loadPlayers(1); // Reload to show empty list
+                } else {
+                    const error = await response.json();
+                    playersStatus.textContent = `Error: ${error.error || 'Failed to delete all players'}`;
+                    playersStatus.style.color = 'red';
+                }
+            } catch (error) {
+                playersStatus.textContent = 'Failed to delete all players';
+                playersStatus.style.color = 'red';
+            }
+        });
+    }
+
+    function updateBulkDeleteButton() {
+        if (bulkDeletePlayersBtn) {
+            bulkDeletePlayersBtn.disabled = selectedPlayerUuids.size === 0;
+        }
+        if (selectAllPlayersCheckbox) {
+            const checkboxes = document.querySelectorAll('.player-select-checkbox');
+            selectAllPlayersCheckbox.checked = checkboxes.length > 0 && checkboxes.length === selectedPlayerUuids.size;
+        }
+    }
+
+    async function loadPlayers(page = 1) {
+        try {
+            playersLoading.style.display = 'block';
+            playersTable.style.display = 'none';
+            playersEmpty.style.display = 'none';
+            playersStatus.textContent = '';
+
+            const searchParam = currentPlayersSearch ? `&search=${encodeURIComponent(currentPlayersSearch)}` : '';
+            const response = await fetch(`/api/players?page=${page}&limit=20${searchParam}`);
+            if (!response.ok) throw new Error('Failed to load players');
+            const data = await response.json();
+
+            playersPaginationInfo = data.pagination;
+            currentPlayersPage = page;
+
+            if (data.players.length === 0) {
+                playersLoading.style.display = 'none';
+                playersEmpty.style.display = 'block';
+                playersTable.style.display = 'none';
+            } else {
+                playersTbody.innerHTML = data.players.map(player => {
+                    const uuidShort = player.uuid.substring(0, 8);
+                    const corpName = player.productName || '(none)';
+                    const tagline = player.tagline || '(none)';
+                    const isSelected = selectedPlayerUuids.has(player.uuid);
+                    return `
+                        <tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 8px;">
+                                <input type="checkbox" class="player-select-checkbox" data-uuid="${player.uuid}" ${isSelected ? 'checked' : ''} />
+                            </td>
+                            <td style="padding: 8px; font-family: monospace; font-size: 0.9em;">${uuidShort}</td>
+                            <td style="padding: 8px;">
+                                <span class="editable-field" data-uuid="${player.uuid}" data-field="productName" contenteditable="false">${corpName}</span>
+                            </td>
+                            <td style="padding: 8px;">
+                                <span class="editable-field" data-uuid="${player.uuid}" data-field="tagline" contenteditable="false">${tagline}</span>
+                            </td>
+                            <td style="padding: 8px;">
+                                <div style="width: 30px; height: 20px; background-color: ${player.color}; border: 1px solid #ddd; display: inline-block;"></div>
+                                <span style="margin-left: 5px; font-family: monospace; font-size: 0.9em;">${player.color}</span>
+                            </td>
+                            <td style="padding: 8px;">${player.totalScore || 0}</td>
+                            <td style="padding: 8px;">
+                                <button class="edit-player-btn" data-uuid="${player.uuid}" style="padding: 4px 8px; font-size: 0.9em;">Edit</button>
+                                <button class="save-player-btn" data-uuid="${player.uuid}" style="padding: 4px 8px; font-size: 0.9em; display: none;">Save</button>
+                                <button class="cancel-player-btn" data-uuid="${player.uuid}" style="padding: 4px 8px; font-size: 0.9em; display: none;">Cancel</button>
+                                <button class="delete-player-btn" data-uuid="${player.uuid}" style="padding: 4px 8px; font-size: 0.9em; background-color: #dc3545; color: white; margin-left: 5px;">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                // Add event listeners for checkboxes
+                document.querySelectorAll('.player-select-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', (e) => {
+                        const uuid = e.target.dataset.uuid;
+                        if (e.target.checked) {
+                            selectedPlayerUuids.add(uuid);
+                        } else {
+                            selectedPlayerUuids.delete(uuid);
+                        }
+                        updateBulkDeleteButton();
+                    });
+                });
+
+                // Add event listeners for delete buttons
+                document.querySelectorAll('.delete-player-btn').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const uuid = e.target.dataset.uuid;
+                        const uuidShort = uuid.substring(0, 8);
+                        
+                        if (!confirm(`Are you sure you want to delete player ${uuidShort}? This action cannot be undone.`)) {
+                            return;
+                        }
+
+                        try {
+                            playersStatus.textContent = 'Deleting player...';
+                            playersStatus.style.color = 'black';
+                            
+                            const response = await fetch(`/api/players/${uuid}`, {
+                                method: 'DELETE'
+                            });
+
+                            if (response.ok) {
+                                playersStatus.textContent = 'Player deleted successfully';
+                                playersStatus.style.color = 'green';
+                                selectedPlayerUuids.delete(uuid);
+                                updateBulkDeleteButton();
+                                loadPlayers(currentPlayersPage);
+                            } else {
+                                const error = await response.json();
+                                playersStatus.textContent = `Error: ${error.error || 'Failed to delete player'}`;
+                                playersStatus.style.color = 'red';
+                            }
+                        } catch (error) {
+                            playersStatus.textContent = 'Failed to delete player';
+                            playersStatus.style.color = 'red';
+                        }
+                    });
+                });
+
+                // Add event listeners for edit buttons
+                document.querySelectorAll('.edit-player-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const uuid = e.target.dataset.uuid;
+                        const row = e.target.closest('tr');
+                        const productNameField = row.querySelector('[data-field="productName"]');
+                        const taglineField = row.querySelector('[data-field="tagline"]');
+                        
+                        productNameField.contentEditable = 'true';
+                        taglineField.contentEditable = 'true';
+                        productNameField.style.border = '1px solid #007bff';
+                        taglineField.style.border = '1px solid #007bff';
+                        productNameField.style.padding = '2px';
+                        taglineField.style.padding = '2px';
+                        
+                        e.target.style.display = 'none';
+                        row.querySelector(`.save-player-btn[data-uuid="${uuid}"]`).style.display = 'inline-block';
+                        row.querySelector(`.cancel-player-btn[data-uuid="${uuid}"]`).style.display = 'inline-block';
+                    });
+                });
+
+                document.querySelectorAll('.save-player-btn').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const uuid = e.target.dataset.uuid;
+                        const row = e.target.closest('tr');
+                        const productNameField = row.querySelector('[data-field="productName"]');
+                        const taglineField = row.querySelector('[data-field="tagline"]');
+                        
+                        const productName = productNameField.textContent.trim() === '(none)' ? '' : productNameField.textContent.trim();
+                        const tagline = taglineField.textContent.trim() === '(none)' ? '' : taglineField.textContent.trim();
+                        
+                        try {
+                            const response = await fetch(`/api/players/${uuid}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ productName, tagline })
+                            });
+                            
+                            if (response.ok) {
+                                playersStatus.textContent = 'Player updated successfully';
+                                playersStatus.style.color = 'green';
+                                loadPlayers(currentPlayersPage);
+                            } else {
+                                const error = await response.json();
+                                playersStatus.textContent = `Error: ${error.error || 'Failed to update player'}`;
+                                playersStatus.style.color = 'red';
+                            }
+                        } catch (error) {
+                            playersStatus.textContent = 'Failed to update player';
+                            playersStatus.style.color = 'red';
+                        }
+                    });
+                });
+
+                document.querySelectorAll('.cancel-player-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        loadPlayers(currentPlayersPage);
+                    });
+                });
+
+                // Update pagination display
+                if (playersPaginationInfo) {
+                    const { page, totalPages, total } = playersPaginationInfo;
+                    playersPagination.innerHTML = `Page ${page} of ${totalPages} (${total} total) `;
+                    
+                    // Clear existing pagination buttons
+                    const existingButtons = playersPagination.querySelectorAll('button');
+                    existingButtons.forEach(btn => btn.remove());
+                    
+                    if (page > 1) {
+                        const prevBtn = document.createElement('button');
+                        prevBtn.textContent = 'Previous';
+                        prevBtn.style.marginLeft = '10px';
+                        prevBtn.addEventListener('click', () => loadPlayers(page - 1));
+                        playersPagination.appendChild(prevBtn);
+                    }
+                    
+                    if (page < totalPages) {
+                        const nextBtn = document.createElement('button');
+                        nextBtn.textContent = 'Next';
+                        nextBtn.style.marginLeft = '10px';
+                        nextBtn.addEventListener('click', () => loadPlayers(page + 1));
+                        playersPagination.appendChild(nextBtn);
+                    }
+                }
+
+                playersLoading.style.display = 'none';
+                playersTable.style.display = 'table';
+            }
+        } catch (error) {
+            playersLoading.style.display = 'none';
+            playersStatus.textContent = 'Error loading players';
+            playersStatus.style.color = 'red';
+        }
+    }
 });

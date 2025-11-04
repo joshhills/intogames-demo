@@ -16,6 +16,7 @@ import { activeConnections } from '../shared/redis-client.js';
 
 const WS_PORT = process.env.PORT || 3001;
 
+// Initialize subscriber client to listen for Redis messages
 subscriberClient();
 
 // Initialize Fastify server

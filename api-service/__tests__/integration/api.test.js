@@ -99,7 +99,7 @@ describe('API Service Integration Tests', () => {
       await request(app)
         .post('/api/player/setup')
         .set(authHeaders(token))
-        .send({ tagline: 'MyTagline', color: '#00FF00' })
+        .send({ productName: 'TestProduct', tagline: 'MyTagline', color: '#00FF00' })
         .expect(200);
 
       // Verify profile was updated
@@ -108,6 +108,7 @@ describe('API Service Integration Tests', () => {
         .set(authHeaders(token))
         .expect(200);
 
+      expect(profileResponse.body.productName).toBe('TestProduct');
       expect(profileResponse.body.tagline).toBe('MyTagline');
       expect(profileResponse.body.color).toBe('#00FF00');
     });

@@ -17,21 +17,13 @@
       Global Firewall Integrity: <span id="global-health-value">Loading...</span>
     </div>
     <div id="motd-container" style="display: none;">
-      <span id="motd-label">Message of the Day:</span> <span id="motd-value"></span>
+      <span id="motd-label">Latest Government Transmission:</span> <span id="motd-value"></span>
     </div>
   </div>
 
   <div class="main-container">
     <div id="game-ui-left">
-      <h2>Profile</h2>
-      <div id="profile-info">
-        <div>ID: <span id="player-id">...</span></div>
-        <div>Tagline: <input type="text" id="tagline-input" /></div>
-        <div>Color: <input type="color" id="color-input" /></div>
-        <button id="profile-save-btn">Save Profile</button>
-      </div>
-      <hr>
-      <h2>Top Defenders</h2>
+      <h2>Most Patriotic Corporations:</h2>
       <ol id="leaderboard-list">
         <li>Loading...</li>
       </ol>
@@ -63,11 +55,50 @@
       
       <div id="local-score">Score: 0</div>
       <div id="game-timer">Time: 60</div>
+      <div id="bugs-stats">
+        <div id="bugs-killed">Bugs Squashed: 0</div>
+        <div id="bugs-exploited">Bugs Let In: 0</div>
+      </div>
       <button id="start-game-btn">Start Game</button>
       
       <hr>
+      <h2>Profile</h2>
+      <div id="profile-info">
+        <div>ID: <span id="player-id">...</span></div>
+        <div>Corporation Name: <input type="text" id="product-name-input" placeholder="Your Corporation Name" maxlength="128" /><span id="product-name-counter" style="font-size: 0.85em; color: #888; margin-left: 5px;">0/64</span></div>
+        <div>Tagline: <input type="text" id="tagline-input" maxlength="256" /><span id="tagline-counter" style="font-size: 0.85em; color: #888; margin-left: 5px;">0/128</span></div>
+        <div>Color: <input type="color" id="color-input" /></div>
+        <button id="profile-save-btn">Save Profile</button>
+      </div>
+      <hr>
       <h2>Notifications</h2>
       <div id="notification-toast"></div>
+    </div>
+  </div>
+
+  <!-- Profile Setup Modal -->
+  <div id="profile-setup-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: #0a0a0a; border: 2px solid #00ff00; padding: 30px; max-width: 500px; width: 90%; font-family: 'Courier New', monospace;">
+      <h2 style="color: #00ff00; margin-top: 0;">Welcome to Firewall Defense</h2>
+      <p style="color: #00ff00; line-height: 1.6;">
+        Vulnerabilities in Cyber Earth's firewall are being exploited by alien bugs. Corporations are sending their best IT specialists to fight them. Bounce bugs off screen to stop them passing through and score points. Corporations with the most points are rewarded valuable advertising space by the global government.
+      </p>
+      <p style="color: #00ff00; line-height: 1.6; margin-top: 15px;">
+        To get started, please set up your corporation profile. Your Corporation Name and Tagline will be displayed on the leaderboard!
+      </p>
+      <div style="margin: 20px 0;">
+        <label style="color: #00ff00; display: block; margin-bottom: 5px;">Corporation Name:</label>
+        <input type="text" id="modal-product-name-input" placeholder="Your Corporation Name" style="width: 100%; padding: 8px; background: #000; color: #00ff00; border: 1px solid #00ff00; font-family: 'Courier New', monospace;" />
+        <span id="modal-product-name-counter" style="font-size: 0.85em; color: #888; margin-left: 5px;">0/64</span>
+      </div>
+      <div style="margin: 20px 0;">
+        <label style="color: #00ff00; display: block; margin-bottom: 5px;">Tagline:</label>
+        <input type="text" id="modal-tagline-input" placeholder="Your Tagline" style="width: 100%; padding: 8px; background: #000; color: #00ff00; border: 1px solid #00ff00; font-family: 'Courier New', monospace;" />
+        <span id="modal-tagline-counter" style="font-size: 0.85em; color: #888; margin-left: 5px;">0/128</span>
+      </div>
+      <button id="modal-save-profile-btn" style="width: 100%; padding: 12px; background: #00ff00; color: #000; border: none; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; margin-top: 10px;">
+        Save Profile & Continue
+      </button>
     </div>
   </div>
 

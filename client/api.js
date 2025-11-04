@@ -25,6 +25,153 @@ function generateUUID() {
   });
 }
 
+// --- PROFILE SETUP MODAL ---
+function updateModalCharacterCounters() {
+  if (!validationConfig) return;
+  
+  const productNameInput = document.getElementById('modal-product-name-input');
+  const taglineInput = document.getElementById('modal-tagline-input');
+  const productNameCounter = document.getElementById('modal-product-name-counter');
+  const taglineCounter = document.getElementById('modal-tagline-counter');
+  
+  if (productNameInput && productNameCounter) {
+    const length = productNameInput.value.trim().length;
+    const max = validationConfig.corporationNameMaxLength || 64;
+    productNameCounter.textContent = `${length}/${max}`;
+    
+    if (length < (validationConfig.corporationNameMinLength || 1)) {
+      productNameCounter.style.color = '#ff0000';
+    } else if (length > max * 0.9) {
+      productNameCounter.style.color = '#ffaa00';
+    } else {
+      productNameCounter.style.color = '#888';
+    }
+    
+    productNameInput.maxLength = max;
+  }
+  
+  if (taglineInput && taglineCounter) {
+    const length = taglineInput.value.trim().length;
+    const max = validationConfig.taglineMaxLength || 128;
+    taglineCounter.textContent = `${length}/${max}`;
+    
+    if (length < (validationConfig.taglineMinLength || 1)) {
+      taglineCounter.style.color = '#ff0000';
+    } else if (length > max * 0.9) {
+      taglineCounter.style.color = '#ffaa00';
+    } else {
+      taglineCounter.style.color = '#888';
+    }
+    
+    taglineInput.maxLength = max;
+  }
+}
+
+function showProfileSetupModal() {
+  const modal = document.getElementById('profile-setup-modal');
+  if (!modal) return;
+  
+  modal.style.display = 'flex';
+  
+  // Populate with existing values if available
+  const productNameInput = document.getElementById('modal-product-name-input');
+  const taglineInput = document.getElementById('modal-tagline-input');
+  const productNameMain = document.getElementById('product-name-input');
+  const taglineMain = document.getElementById('tagline-input');
+  
+  if (productNameInput && productNameMain) {
+    productNameInput.value = productNameMain.value || '';
+  }
+  if (taglineInput && taglineMain) {
+    taglineInput.value = taglineMain.value || '';
+  }
+  
+  // Update character counters
+  updateModalCharacterCounters();
+  
+  // Set up listeners for modal counters
+  if (productNameInput) {
+    productNameInput.addEventListener('input', updateModalCharacterCounters);
+  }
+  if (taglineInput) {
+    taglineInput.addEventListener('input', updateModalCharacterCounters);
+  }
+  
+  // Focus on product name input
+  if (productNameInput) {
+    setTimeout(() => productNameInput.focus(), 100);
+  }
+}
+
+function hideProfileSetupModal() {
+  const modal = document.getElementById('profile-setup-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+// Initialize modal save button handler
+document.addEventListener('DOMContentLoaded', () => {
+  const modalSaveBtn = document.getElementById('modal-save-profile-btn');
+  if (modalSaveBtn) {
+    modalSaveBtn.addEventListener('click', async () => {
+      const productNameInput = document.getElementById('modal-product-name-input');
+      const taglineInput = document.getElementById('modal-tagline-input');
+      const productNameMain = document.getElementById('product-name-input');
+      const taglineMain = document.getElementById('tagline-input');
+      
+      // Validate modal inputs
+      if (!validationConfig) {
+        validationConfig = {
+          corporationNameMinLength: 1,
+          corporationNameMaxLength: 64,
+          taglineMinLength: 1,
+          taglineMaxLength: 128
+        };
+      }
+      
+      const productName = productNameInput ? productNameInput.value.trim() : '';
+      const tagline = taglineInput ? taglineInput.value.trim() : '';
+      
+      // Client-side validation
+      if (productName !== '') {
+        const corpLength = productName.length;
+        if (corpLength < validationConfig.corporationNameMinLength) {
+          showNotification(`Corporation name must be at least ${validationConfig.corporationNameMinLength} character(s)`);
+          return;
+        }
+        if (corpLength > validationConfig.corporationNameMaxLength) {
+          showNotification(`Corporation name must be at most ${validationConfig.corporationNameMaxLength} characters`);
+          return;
+        }
+      }
+      
+      const taglineLength = tagline.length;
+      if (taglineLength < validationConfig.taglineMinLength) {
+        showNotification(`Tagline must be at least ${validationConfig.taglineMinLength} character(s)`);
+        return;
+      }
+      if (taglineLength > validationConfig.taglineMaxLength) {
+        showNotification(`Tagline must be at most ${validationConfig.taglineMaxLength} characters`);
+        return;
+      }
+      
+      // Sync modal inputs to main inputs
+      if (productNameInput && productNameMain) {
+        productNameMain.value = productName;
+        updateCharacterCounters();
+      }
+      if (taglineInput && taglineMain) {
+        taglineMain.value = tagline;
+        updateCharacterCounters();
+      }
+      
+      // Trigger profile save
+      await saveProfile();
+    });
+  }
+});
+
 function showNotification(message, isMOTD = false) {
   const toast = document.getElementById('notification-toast');
   toast.textContent = message;
@@ -89,6 +236,93 @@ async function enrollAndLogin() {
 }
 
 // --- PLAYER PROFILE ---
+function updateCharacterCounters() {
+  if (!validationConfig) return;
+  
+  const productNameInput = document.getElementById('product-name-input');
+  const taglineInput = document.getElementById('tagline-input');
+  const productNameCounter = document.getElementById('product-name-counter');
+  const taglineCounter = document.getElementById('tagline-counter');
+  
+  if (productNameInput && productNameCounter) {
+    const length = productNameInput.value.trim().length;
+    const max = validationConfig.corporationNameMaxLength || 64;
+    productNameCounter.textContent = `${length}/${max}`;
+    
+    // Color code: red if invalid, yellow if approaching limit, green otherwise
+    if (length < (validationConfig.corporationNameMinLength || 1)) {
+      productNameCounter.style.color = '#ff0000';
+    } else if (length > max * 0.9) {
+      productNameCounter.style.color = '#ffaa00';
+    } else {
+      productNameCounter.style.color = '#888';
+    }
+    
+    // Update maxlength attribute
+    productNameInput.maxLength = max;
+  }
+  
+  if (taglineInput && taglineCounter) {
+    const length = taglineInput.value.trim().length;
+    const max = validationConfig.taglineMaxLength || 128;
+    taglineCounter.textContent = `${length}/${max}`;
+    
+    // Color code: red if invalid, yellow if approaching limit, green otherwise
+    if (length < (validationConfig.taglineMinLength || 1)) {
+      taglineCounter.style.color = '#ff0000';
+    } else if (length > max * 0.9) {
+      taglineCounter.style.color = '#ffaa00';
+    } else {
+      taglineCounter.style.color = '#888';
+    }
+    
+    // Update maxlength attribute
+    taglineInput.maxLength = max;
+  }
+}
+
+function validateProfile() {
+  if (!validationConfig) {
+    validationConfig = {
+      corporationNameMinLength: 1,
+      corporationNameMaxLength: 64,
+      taglineMinLength: 1,
+      taglineMaxLength: 128
+    };
+  }
+  
+  const productNameInput = document.getElementById('product-name-input');
+  const taglineInput = document.getElementById('tagline-input');
+  let isValid = true;
+  let errorMessage = '';
+  
+  // Validate corporation name (optional but if provided, must meet requirements)
+  if (productNameInput && productNameInput.value.trim() !== '') {
+    const length = productNameInput.value.trim().length;
+    if (length < validationConfig.corporationNameMinLength) {
+      isValid = false;
+      errorMessage = `Corporation name must be at least ${validationConfig.corporationNameMinLength} character(s)`;
+    } else if (length > validationConfig.corporationNameMaxLength) {
+      isValid = false;
+      errorMessage = `Corporation name must be at most ${validationConfig.corporationNameMaxLength} characters`;
+    }
+  }
+  
+  // Validate tagline (required)
+  if (taglineInput) {
+    const length = taglineInput.value.trim().length;
+    if (length < validationConfig.taglineMinLength) {
+      isValid = false;
+      errorMessage = `Tagline must be at least ${validationConfig.taglineMinLength} character(s)`;
+    } else if (length > validationConfig.taglineMaxLength) {
+      isValid = false;
+      errorMessage = `Tagline must be at most ${validationConfig.taglineMaxLength} characters`;
+    }
+  }
+  
+  return { isValid, errorMessage };
+}
+
 async function getProfile() {
   if (!jwtToken) return;
   try {
@@ -96,12 +330,30 @@ async function getProfile() {
       headers: { 'Authorization': `Bearer ${jwtToken}` },
     });
     const profile = await response.json();
-    document.getElementById('tagline-input').value = profile.tagline;
-    document.getElementById('color-input').value = profile.color;
+    const productNameInput = document.getElementById('product-name-input');
+    const taglineInput = document.getElementById('tagline-input');
+    const colorInput = document.getElementById('color-input');
+    
+    if (productNameInput) productNameInput.value = profile.productName || '';
+    if (taglineInput) taglineInput.value = profile.tagline || '';
+    if (colorInput) colorInput.value = profile.color || '#FFFFFF';
+    
+    // Update character counters
+    updateCharacterCounters();
     
     // Update player's total score display
     if (profile.totalScore !== undefined) {
       updatePlayerScore(profile.totalScore);
+    }
+    
+    // Check if profile needs setup (first login)
+    // Show modal if corporation name is generic/default or tagline is placeholder
+    const needsSetup = !profile.productName || 
+                      profile.productName.startsWith('Generic Co. #') || 
+                      !profile.tagline || 
+                      profile.tagline === 'Your tagline here!';
+    if (needsSetup && !localStorage.getItem('profileSetupShown')) {
+      showProfileSetupModal();
     }
     
     // Notify sketch.js that the profile is loaded
@@ -195,43 +447,121 @@ function updateFlushCountdownDisplay() {
 
 async function saveProfile() {
   if (!jwtToken) return;
-  const tagline = document.getElementById('tagline-input').value;
+  
+  // Client-side validation
+  const validation = validateProfile();
+  if (!validation.isValid) {
+    showNotification(validation.errorMessage);
+    return;
+  }
+  
+  const productName = document.getElementById('product-name-input').value.trim();
+  const tagline = document.getElementById('tagline-input').value.trim();
   const color = document.getElementById('color-input').value;
+  
   try {
-    await fetch(`${API_URL}/player/setup`, {
+    const response = await fetch(`${API_URL}/player/setup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`,
       },
-      body: JSON.stringify({ tagline, color }),
+      body: JSON.stringify({ productName, tagline, color }),
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      showNotification(errorText || 'Failed to save profile');
+      return;
+    }
+    
     showNotification('Profile Saved!');
+    // Mark that profile setup has been shown (don't show modal again)
+    localStorage.setItem('profileSetupShown', 'true');
+    // Close modal if open
+    hideProfileSetupModal();
     // Notify sketch.js to update the color
-    window.dispatchEvent(new CustomEvent('profileLoaded', { detail: { color, tagline } }));
+    window.dispatchEvent(new CustomEvent('profileLoaded', { detail: { productName, color, tagline } }));
   } catch (error) {
     console.error('Save Profile Error:', error);
+    showNotification('Failed to save profile. Please try again.');
   }
 }
 
 // --- GAME & METAGAME ---
+
+let validationConfig = null;
 
 async function getGameConfig() {
   try {
     const response = await fetch(`${API_URL}/game-config`); 
     gameConfig = await response.json();
     console.log('Game Config Loaded:', gameConfig);
+    
+    // Store validation config
+    validationConfig = gameConfig.validation || {
+      corporationNameMinLength: 1,
+      corporationNameMaxLength: 64,
+      taglineMinLength: 1,
+      taglineMaxLength: 128
+    };
+    
+    // Update character counter max values
+    updateCharacterCounters();
+    
     // Enable the start button now that we have config
     document.getElementById('start-game-btn').disabled = false;
     
   } catch (error) {
     console.error('Game Config Error:', error);
     showNotification('Error loading game config. Using defaults.');
+    
+    // Use defaults if config fails to load
+    validationConfig = {
+      corporationNameMinLength: 1,
+      corporationNameMaxLength: 64,
+      taglineMinLength: 1,
+      taglineMaxLength: 128
+    };
+    
     // Fallback in case API is down
     gameConfig = {
-      easy: { holeCount: 1, spawnRate: 1000, maxSpeed: 1.5, penalty: 5, defenseBonus: 5, gameTimeSeconds: 60 },
-      medium: { holeCount: 1, spawnRate: 750, maxSpeed: 2, penalty: 10, defenseBonus: 5, gameTimeSeconds: 60 },
-      hard: { holeCount: 2, spawnRate: 500, maxSpeed: 2.5, penalty: 15, defenseBonus: 5, gameTimeSeconds: 60 }
+      easy: { 
+        holeCount: 1, 
+        spawnRate: 1000, 
+        maxSpeed: 1.5, 
+        penalty: 5, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 100,
+        adblockRegenerationRate: 50,
+        adblockTimeoutAfterUse: 2,
+        holesWander: false
+      },
+      medium: { 
+        holeCount: 1, 
+        spawnRate: 750, 
+        maxSpeed: 2, 
+        penalty: 10, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 150,
+        adblockRegenerationRate: 40,
+        adblockTimeoutAfterUse: 2,
+        holesWander: false
+      },
+      hard: { 
+        holeCount: 2, 
+        spawnRate: 500, 
+        maxSpeed: 2.5, 
+        penalty: 15, 
+        defenseBonus: 5, 
+        gameTimeSeconds: 60,
+        adblockDepletionRate: 200,
+        adblockRegenerationRate: 30,
+        adblockTimeoutAfterUse: 3,
+        holesWander: true
+      }
     };
   }
 }
@@ -259,9 +589,22 @@ function updateLeaderboardDisplay(leaderboard) {
   const listEl = document.getElementById('leaderboard-list');
   if (!listEl) return;
   
-  listEl.innerHTML = leaderboard.map(entry => 
-    `<li>${entry.tagline} - ${formatNumber(entry.score)}</li>`
-  ).join('');
+  listEl.innerHTML = leaderboard.map(entry => {
+    const corporationName = entry.productName || '';
+    const tagline = entry.tagline || '';
+    const score = formatNumber(entry.score);
+    const playerColor = entry.color || '#FFFFFF';
+    
+    // Show corporation name and tagline on separate lines (tagline smaller)
+    // Border color matches player's profile color
+    const borderStyle = `border: 2px solid ${playerColor}; padding: 0.5em; margin-bottom: 0.5em; background-color: rgba(0, 0, 0, 0.3);`;
+    
+    if (corporationName) {
+      return `<li style="${borderStyle}"><div style="font-weight: bold; margin-bottom: 0.2em;">${corporationName}</div><div style="font-size: 0.8em; color: #888; margin-left: 1.2em; margin-bottom: 0.3em;">${tagline}</div><div style="font-size: 0.9em;">Score: ${score}</div></li>`;
+    } else {
+      return `<li style="${borderStyle}"><div style="font-weight: bold; margin-bottom: 0.3em;">${tagline}</div><div style="font-size: 0.9em;">Score: ${score}</div></li>`;
+    }
+  }).join('');
   if (leaderboard.length === 0) {
     listEl.innerHTML = '<li>No scores yet!</li>';
   }
@@ -309,7 +652,7 @@ function hideMOTD() {
   }
 }
 
-async function submitMatchScore(score, difficulty, successRatio) {
+async function submitMatchScore(score, difficulty, successRatio, bugsKilled, bugsReachedHoles) {
   if (!jwtToken) return;
   try {
     const response = await fetch(`${API_URL}/match/complete`, {
@@ -318,7 +661,7 @@ async function submitMatchScore(score, difficulty, successRatio) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtToken}`,
       },
-      body: JSON.stringify({ score, difficulty, successRatio }),
+              body: JSON.stringify({ score, difficulty, successRatio, bugsKilled, bugsReachedHoles }),
     });
     
     if (response.ok) {
@@ -449,6 +792,65 @@ function connectWebSocket() {
         }
         displayMOTD(motdMessage);
         showNotification(data.message, true);
+      }
+      
+      if (data.type === 'PROFILE_UPDATED') {
+        // Admin updated the player's profile
+        const currentUuid = localStorage.getItem('local_uuid');
+        if (data.uuid === currentUuid) {
+          console.log('Profile was updated by admin:', data);
+          
+          // Update profile inputs
+          const productNameInput = document.getElementById('product-name-input');
+          const taglineInput = document.getElementById('tagline-input');
+          
+          if (productNameInput && data.productName !== undefined) {
+            productNameInput.value = data.productName;
+          }
+          if (taglineInput && data.tagline !== undefined) {
+            taglineInput.value = data.tagline;
+          }
+          
+          // Update character counters
+          updateCharacterCounters();
+          
+          // Notify sketch.js to update the profile
+          window.dispatchEvent(new CustomEvent('profileLoaded', { 
+            detail: { 
+              productName: data.productName || '', 
+              tagline: data.tagline || '',
+              color: document.getElementById('color-input')?.value || '#FFFFFF'
+            } 
+          }));
+          
+          showNotification('Your profile was updated by an administrator');
+        }
+      }
+      
+      if (data.type === 'PLAYER_DELETED') {
+        // Player was deleted by admin
+        const currentUuidDeleted = localStorage.getItem('local_uuid');
+        if (data.uuid === currentUuidDeleted) {
+          console.log('Player account was deleted by admin');
+          
+          // Clear local storage
+          localStorage.removeItem('local_uuid');
+          localStorage.removeItem('jwt_token');
+          localStorage.removeItem('profileSetupShown');
+          
+          // Clear JWT token
+          jwtToken = null;
+          
+          // Show notification
+          showNotification('Your account has been deleted. Please refresh to re-enroll.', true);
+          
+          // Optionally, redirect or trigger re-enrollment after a delay
+          setTimeout(() => {
+            if (confirm('Your account was deleted. Would you like to refresh the page to create a new account?')) {
+              window.location.reload();
+            }
+          }, 2000);
+        }
       }
     } catch (error) {
       console.error('Error parsing WebSocket message:', error);

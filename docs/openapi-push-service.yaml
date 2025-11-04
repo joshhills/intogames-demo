@@ -98,9 +98,12 @@ components:
           items:
             type: object
             properties:
+              productName:
+                type: string
+                description: Corporation name (optional)
               tagline:
                 type: string
-                description: Player display name
+                description: Player tagline/slogan
               score:
                 type: integer
                 description: Cumulative total score

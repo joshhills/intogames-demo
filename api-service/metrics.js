@@ -67,6 +67,20 @@ const playersEnrolled = new Counter({
   registers: [register]
 });
 
+const bugsSquashed = new Counter({
+  name: 'firewall_bugs_squashed_total',
+  help: 'Total number of bugs squashed (pushed off screen)',
+  labelNames: ['difficulty'],
+  registers: [register]
+});
+
+const bugsExploited = new Counter({
+  name: 'firewall_bugs_exploited_total',
+  help: 'Total number of bugs that reached holes (exploited vulnerabilities)',
+  labelNames: ['difficulty'],
+  registers: [register]
+});
+
 // --- HISTOGRAMS (for measuring distribution) ---
 const matchScoreHistogram = new Histogram({
   name: 'firewall_match_score',
@@ -112,6 +126,8 @@ export {
   globalMaxHealth,
   playersEnrolled,
   matchScoreHistogram,
-  matchSuccessRatioHistogram
+  matchSuccessRatioHistogram,
+  bugsSquashed,
+  bugsExploited
 };
 
